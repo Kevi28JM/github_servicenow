@@ -1,4 +1,4 @@
-name: Service Request-Information
+name: Service Request-Generic
 description: Request for information related to a project
 labels: ["Type/ServiceRequest"]
 
@@ -9,7 +9,7 @@ body:
     attributes:
       label: "Template Marker"
       description: "Do not remove or modify. Used for validation."
-      value: "SR Information"
+      value: "SR Generic"
     validations:
       required: true
 
@@ -24,10 +24,10 @@ body:
       
 # Request Description (textarea)
   - type: textarea
-    id: Description
+    id: description
     attributes:
-      label: Request Description
-      description: Provide details of the information required
+      label: Description
+      description: Provide details of the change required
     validations:
       required: true
 
