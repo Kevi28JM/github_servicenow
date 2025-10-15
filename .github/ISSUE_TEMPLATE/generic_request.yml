@@ -1,0 +1,35 @@
+name: Service Request-Information
+description: Request for information related to a project
+labels: ["Type/ServiceRequest"]
+
+body:
+# Hidden marker field used for workflow validation
+  - type: input
+    id: template-marker
+    attributes:
+      label: "Template Marker"
+      description: "Do not remove or modify. Used for validation."
+      value: "SR Information"
+    validations:
+      required: true
+
+# Short Description (textarea)
+  - type: textarea
+    id: short_description
+    attributes:
+      label: Short Description
+      description: Provide a brief description of the request
+    validations:
+      required: true
+      
+# Request Description (textarea)
+  - type: textarea
+    id: Description
+    attributes:
+      label: Request Description
+      description: Provide details of the information required
+    validations:
+      required: true
+
+ 
+ 
