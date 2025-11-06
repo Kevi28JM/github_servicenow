@@ -9,8 +9,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Send Custom Payload to ServiceNow
-        env:
-          SERVICENOW_URL: ${{ secrets.SERVICENOW_URL }}
         run: |
           # Extract GitHub issue data
           ISSUE_NUMBER="${{ github.event.issue.number }}"
@@ -51,20 +49,7 @@ jobs:
           PRODUCT="WSO2 API Manager 1.10.0 Developer Portal"
           WSO2_PRODUCT="WSO2 API Manager Analytics"
           
-          case "$REPO_NAME" in
-            "wso2-api-manager"|"api-manager")
-              PROJECT="Customer Portal Customer Project1 - Subscription"
-              PRODUCT="WSO2 API Manager 1.10.0 Developer Portal"
-              WSO2_PRODUCT="WSO2 API Manager Analytics"
-              ;;
-            "wso2-identity-server")
-              PROJECT="Customer Portal Customer Project1 - Subscription"
-              PRODUCT="WSO2 API Manager 1.10.0 Developer Portal"
-              WSO2_PRODUCT="WSO2 API Manager Analytics"
-              ;;
-          esac
-          
-          # Create CUSTOM payload (only fields you need!)
+          # Create CUSTOM payload
           CUSTOM_PAYLOAD=$(jq -n \
             --arg project "$PROJECT" \
             --arg product "$PRODUCT" \
@@ -101,14 +86,14 @@ jobs:
           echo "Custom Payload:"
           echo "$CUSTOM_PAYLOAD" | jq '.'
           
-          # Send to ServiceNow
+          # Send to ServiceNow (USE YOUR WORKING URL!)
           HTTP_CODE=$(curl -X POST \
             -H "Content-Type: application/json" \
             -d "$CUSTOM_PAYLOAD" \
             -w "%{http_code}" \
             -o response.json \
             -s \
-            "${SERVICENOW_URL}/api/now/github_issue_integration/create-case")
+            https://wso2sndev.wso2.com/api/wso2/test_sr)
           
           echo "HTTP Status: $HTTP_CODE"
           echo "ServiceNow Response:"
@@ -119,5 +104,6 @@ jobs:
             exit 0
           else
             echo "❌ Failed to create case (HTTP $HTTP_CODE)"
+            cat response.json
             exit 1
           fi
