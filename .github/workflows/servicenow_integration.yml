@@ -1,0 +1,123 @@
+name: ServiceNow Integration
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  send-to-servicenow:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Custom Payload to ServiceNow
+        env:
+          SERVICENOW_URL: ${{ secrets.SERVICENOW_URL }}
+        run: |
+          # Extract GitHub issue data
+          ISSUE_NUMBER="${{ github.event.issue.number }}"
+          ISSUE_TITLE=$(echo '${{ toJSON(github.event.issue.title) }}' | jq -r '.')
+          ISSUE_BODY=$(echo '${{ toJSON(github.event.issue.body) }}' | jq -r '.')
+          ISSUE_URL="${{ github.event.issue.html_url }}"
+          GITHUB_USER="${{ github.event.issue.user.login }}"
+          REPO_NAME="${{ github.event.repository.name }}"
+          REPO_FULL_NAME="${{ github.event.repository.full_name }}"
+          
+          # Extract labels
+          LABELS=$(echo '${{ toJSON(github.event.issue.labels) }}' | jq -r '.[].name' | tr '\n' ',' | sed 's/,$//')
+          
+          # Determine environment from labels
+          ENVIRONMENT="Development"
+          if echo "$LABELS" | grep -qi "production\|prod"; then
+            ENVIRONMENT="Production"
+          elif echo "$LABELS" | grep -qi "staging\|stage"; then
+            ENVIRONMENT="Staging"
+          fi
+          
+          # Determine priority from labels
+          PRIORITY="3 - Moderate"
+          if echo "$LABELS" | grep -qi "high-priority\|critical"; then
+            PRIORITY="1 - Critical"
+          elif echo "$LABELS" | grep -qi "medium-priority"; then
+            PRIORITY="2 - High"
+          fi
+          
+          # Determine case type from labels
+          CASE_TYPE="Service Request"
+          if echo "$LABELS" | grep -qi "bug\|incident"; then
+            CASE_TYPE="Incident"
+          fi
+          
+          # Map repo to project/product
+          PROJECT="Customer Portal Customer Project1 - Subscription"
+          PRODUCT="WSO2 API Manager 1.10.0 Developer Portal"
+          WSO2_PRODUCT="WSO2 API Manager Analytics"
+          
+          case "$REPO_NAME" in
+            "wso2-api-manager"|"api-manager")
+              PROJECT="Customer Portal Customer Project1 - Subscription"
+              PRODUCT="WSO2 API Manager 1.10.0 Developer Portal"
+              WSO2_PRODUCT="WSO2 API Manager Analytics"
+              ;;
+            "wso2-identity-server")
+              PROJECT="Customer Portal Customer Project1 - Subscription"
+              PRODUCT="WSO2 API Manager 1.10.0 Developer Portal"
+              WSO2_PRODUCT="WSO2 API Manager Analytics"
+              ;;
+          esac
+          
+          # Create CUSTOM payload (only fields you need!)
+          CUSTOM_PAYLOAD=$(jq -n \
+            --arg project "$PROJECT" \
+            --arg product "$PRODUCT" \
+            --arg wso2_product "$WSO2_PRODUCT" \
+            --arg environment "$ENVIRONMENT" \
+            --arg case_type "$CASE_TYPE" \
+            --arg priority "$PRIORITY" \
+            --arg title "$ISSUE_TITLE" \
+            --arg body "$ISSUE_BODY" \
+            --arg issue_number "$ISSUE_NUMBER" \
+            --arg issue_url "$ISSUE_URL" \
+            --arg github_user "$GITHUB_USER" \
+            --arg repo_name "$REPO_NAME" \
+            --arg repo_full_name "$REPO_FULL_NAME" \
+            --arg labels "$LABELS" \
+            '{
+              project: $project,
+              product: $product,
+              u_wso2_product: $wso2_product,
+              environment: $environment,
+              case_type: $case_type,
+              priority: $priority,
+              service_request_category: "GitHub Integration",
+              title: $title,
+              body: $body,
+              github_issue_number: $issue_number,
+              github_issue_url: $issue_url,
+              github_user: $github_user,
+              repository_name: $repo_name,
+              repository_full_name: $repo_full_name,
+              labels: $labels
+            }')
+          
+          echo "Custom Payload:"
+          echo "$CUSTOM_PAYLOAD" | jq '.'
+          
+          # Send to ServiceNow
+          HTTP_CODE=$(curl -X POST \
+            -H "Content-Type: application/json" \
+            -d "$CUSTOM_PAYLOAD" \
+            -w "%{http_code}" \
+            -o response.json \
+            -s \
+            "${SERVICENOW_URL}/api/now/github_issue_integration/create-case")
+          
+          echo "HTTP Status: $HTTP_CODE"
+          echo "ServiceNow Response:"
+          cat response.json | jq '.' || cat response.json
+          
+          if [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Successfully created case in ServiceNow"
+            exit 0
+          else
+            echo "❌ Failed to create case (HTTP $HTTP_CODE)"
+            exit 1
+          fi
