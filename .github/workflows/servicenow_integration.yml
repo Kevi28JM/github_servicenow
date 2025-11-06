@@ -8,6 +8,14 @@ jobs:
   send-to-servicenow:
     runs-on: ubuntu-latest
     steps:
+
+      - name: Check GitHub Actions IP
+        run: |
+          echo "GitHub Actions IP Address:"
+          curl https://api.ipify.org
+          echo ""
+
+
       - name: Send Custom Payload to ServiceNow
         run: |
           # Extract GitHub issue data
