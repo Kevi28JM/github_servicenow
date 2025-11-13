@@ -1,0 +1,307 @@
+name: Test GitHub to ServiceNow Payload
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  test-payload:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Extract Issue Details
+        id: extract
+        run: |
+          echo "issue_number=${{ github.event.issue.number }}" >> $GITHUB_OUTPUT
+          echo "issue_title=${{ github.event.issue.title }}" >> $GITHUB_OUTPUT
+          echo "issue_body=${{ github.event.issue.body }}" >> $GITHUB_OUTPUT
+          echo "issue_url=${{ github.event.issue.html_url }}" >> $GITHUB_OUTPUT
+          echo "github_user=${{ github.event.issue.user.login }}" >> $GITHUB_OUTPUT
+          echo "repo_name=${{ github.event.repository.name }}" >> $GITHUB_OUTPUT
+          echo "repo_full_name=${{ github.event.repository.full_name }}" >> $GITHUB_OUTPUT
+      
+      - name: Process Labels
+        id: labels
+        run: |
+          labels='${{ toJSON(github.event.issue.labels) }}'
+          
+          # Extract label names as comma-separated string
+          label_names=$(echo "$labels" | jq -r '.[].name' | tr '\n' ',' | sed 's/,$//')
+          echo "label_names=$label_names" >> $GITHUB_OUTPUT
+          
+          # Determine environment from labels
+          environment="Development"
+          if echo "$label_names" | grep -qi "production\|prod"; then
+            environment="Production"
+          elif echo "$label_names" | grep -qi "staging\|stage"; then
+            environment="Staging"
+          fi
+          echo "environment=$environment" >> $GITHUB_OUTPUT
+          
+          # Determine priority from labels
+          priority="3 - Moderate"
+          if echo "$label_names" | grep -qi "high-priority\|critical\|urgent"; then
+            priority="1 - Critical"
+          elif echo "$label_names" | grep -qi "medium-priority\|high"; then
+            priority="2 - High"
+          elif echo "$label_names" | grep -qi "low-priority\|low"; then
+            priority="4 - Low"
+          fi
+          echo "priority=$priority" >> $GITHUB_OUTPUT
+          
+          # Determine case type from labels
+          case_type="Service Request"
+          if echo "$label_names" | grep -qi "bug\|incident\|defect"; then
+            case_type="Incident"
+          elif echo "$label_names" | grep -qi "feature\|enhancement\|request"; then
+            case_type="Service Request"
+          fi
+          echo "case_type=$case_type" >> $GITHUB_OUTPUT
+          
+          echo "  Label Processing:"
+          echo "  Labels: $label_names"
+          echo "  Environment: $environment"
+          echo "  Priority: $priority"
+          echo "  Case Type: $case_type"
+      
+      - name: Build GitHub Webhook Payload
+        id: payload
+        run: |
+          # Build the EXACT payload your ServiceNow script expects
+          # This mimics GitHub's webhook format
+          
+          payload=$(jq -n \
+            --arg action "opened" \
+            --argjson issue_number '${{ steps.extract.outputs.issue_number }}' \
+            --arg issue_title '${{ steps.extract.outputs.issue_title }}' \
+            --arg issue_body '${{ steps.extract.outputs.issue_body }}' \
+            --arg issue_url '${{ steps.extract.outputs.issue_url }}' \
+            --arg github_user '${{ steps.extract.outputs.github_user }}' \
+            --argjson labels '${{ toJSON(github.event.issue.labels) }}' \
+            --arg repo_name '${{ steps.extract.outputs.repo_name }}' \
+            --arg repo_full_name '${{ steps.extract.outputs.repo_full_name }}' \
+            '{
+              action: $action,
+              issue: {
+                number: $issue_number,
+                title: $issue_title,
+                body: $issue_body,
+                html_url: $issue_url,
+                user: {
+                  login: $github_user
+                },
+                labels: $labels
+              },
+              repository: {
+                name: $repo_name,
+                full_name: $repo_full_name
+              }
+            }')
+          
+          echo "$payload" > payload.json
+          echo "GitHub Webhook Payload (matches your script's expectations):"
+          cat payload.json | jq '.'
+      
+      # ============================================
+      # OPTION 1: Just Print to Logs (NO SECRETS NEEDED)
+      # ============================================
+      - name: Display Payload in Logs
+        run: |
+          echo "================================================"
+          echo "PAYLOAD FOR YOUR SERVICENOW SCRIPT"
+          echo "================================================"
+          cat payload.json | jq '.'
+          echo ""
+          echo "================================================"
+          echo "EXTRACTED VALUES"
+          echo "================================================"
+          echo "Environment: ${{ steps.labels.outputs.environment }}"
+          echo "Priority: ${{ steps.labels.outputs.priority }}"
+          echo "Case Type: ${{ steps.labels.outputs.case_type }}"
+          echo "Labels: ${{ steps.labels.outputs.label_names }}"
+          echo ""
+          echo "================================================"
+          echo "✅ Copy this payload to test in ServiceNow REST API Explorer"
+          echo "================================================"
+      
+      # ============================================
+      # OPTION 2: Send to Webhook.site (TESTING)
+      # Uncomment and add your webhook.site URL
+      # ============================================
+      # - name: Send to Webhook.site
+      #   if: contains(github.event.issue.labels.*.name, 'test-webhook')
+      #   run: |
+      #     WEBHOOK_URL="https://webhook.site/YOUR-UNIQUE-ID"
+      #     
+      #     curl -X POST \
+      #       -H "Content-Type: application/json" \
+      #       -d @payload.json \
+      #       "$WEBHOOK_URL"
+      #     
+      #     echo "✅ Sent to webhook.site - check: $WEBHOOK_URL"
+      
+      # ============================================
+      # OPTION 3: Send to ServiceNow (PRODUCTION)
+      # Only runs if issue has label "send-to-servicenow"
+      # ============================================
+      - name: Send to ServiceNow
+        if: contains(github.event.issue.labels.*.name, 'send-to-servicenow')
+        run: |
+          # Your ServiceNow endpoint (update if needed)
+          SERVICENOW_URL="https://wso2sndev.wso2.com/api/wso2/test_sr"
+          
+          echo "Sending to ServiceNow: $SERVICENOW_URL"
+          
+          response=$(curl -X POST \
+            -H "Content-Type: application/json" \
+            -d @payload.json \
+            "$SERVICENOW_URL" \
+            -w "\nHTTP_STATUS:%{http_code}" \
+            -s)
+          
+          http_status=$(echo "$response" | grep "HTTP_STATUS" | cut -d':' -f2)
+          response_body=$(echo "$response" | sed '/HTTP_STATUS/d')
+          
+          echo "Response Status: $http_status"
+          echo "Response Body:"
+          echo "$response_body" | jq '.' || echo "$response_body"
+          
+          if [ "$http_status" -ge 200 ] && [ "$http_status" -lt 300 ]; then
+            echo "✅ Successfully sent to ServiceNow"
+            
+            # Try to extract case number from response
+            case_number=$(echo "$response_body" | jq -r '.case_number' 2>/dev/null || echo "")
+            request_number=$(echo "$response_body" | jq -r '.request_number' 2>/dev/null || echo "")
+            ritm_number=$(echo "$response_body" | jq -r '.ritm_number' 2>/dev/null || echo "")
+            
+            echo "case_number=$case_number" >> $GITHUB_OUTPUT
+            echo "request_number=$request_number" >> $GITHUB_OUTPUT
+            echo "ritm_number=$ritm_number" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Failed to send to ServiceNow"
+            echo "Status Code: $http_status"
+            exit 1
+          fi
+      
+      # ============================================
+      # Comment on Issue with Results
+      # ============================================
+      - name: Comment on Issue - Test Mode
+        if: "!contains(github.event.issue.labels.*.name, 'send-to-servicenow')"
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const payload = JSON.parse(fs.readFileSync('payload.json', 'utf8'));
+            
+            const comment = `## Payload Generated (Test Mode)
+            
+            The GitHub webhook payload has been generated and is ready for testing.
+            
+            ### Extracted Values
+            - **Environment:** ${{ steps.labels.outputs.environment }}
+            - **Priority:** ${{ steps.labels.outputs.priority }}
+            - **Case Type:** ${{ steps.labels.outputs.case_type }}
+            - **Labels:** ${{ steps.labels.outputs.label_names }}
+            
+            ### Testing Options
+            
+            **Option 1: View in Actions Log**
+            - Go to [workflow run](${context.payload.repository.html_url}/actions/runs/${context.runId})
+            - Check "Display Payload in Logs" step
+            - Copy the JSON payload
+            
+            **Option 2: Test in ServiceNow**
+            1. Copy the payload from the Actions log
+            2. Go to ServiceNow > System Web Services > REST API Explorer
+            3. POST to: \`/api/wso2/test_sr\`
+            4. Paste the payload and click Send
+            
+            **Option 3: Send to ServiceNow**
+            - Add label \`send-to-servicenow\` to this issue
+            - Close and reopen the issue to trigger the workflow
+            - The payload will be sent to your ServiceNow endpoint
+            
+            <details>
+            <summary>View Generated Payload</summary>
+            
+            \`\`\`json
+            ${JSON.stringify(payload, null, 2)}
+            \`\`\`
+            
+            </details>
+            
+            ---
+            *Workflow in TEST MODE - No data sent to ServiceNow*`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
+      
+      - name: Comment on Issue - Production Mode
+        if: contains(github.event.issue.labels.*.name, 'send-to-servicenow')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const caseNumber = '${{ steps.send-to-servicenow.outputs.case_number }}';
+            const requestNumber = '${{ steps.send-to-servicenow.outputs.request_number }}';
+            const ritmNumber = '${{ steps.send-to-servicenow.outputs.ritm_number }}';
+            
+            let recordsInfo = '';
+            if (requestNumber) recordsInfo += `- **Request:** ${requestNumber}\n`;
+            if (ritmNumber) recordsInfo += `- **RITM:** ${ritmNumber}\n`;
+            if (caseNumber) recordsInfo += `- **Case:** ${caseNumber}\n`;
+            
+            if (!recordsInfo) {
+              recordsInfo = '- Check ServiceNow for created records';
+            }
+            
+            const comment = `## ✅ ServiceNow Case Created
+            
+            Successfully sent issue to ServiceNow!
+            
+            ### Created Records
+            ${recordsInfo}
+            
+            ### Mapped Values
+            - **Environment:** ${{ steps.labels.outputs.environment }}
+            - **Priority:** ${{ steps.labels.outputs.priority }}
+            - **Case Type:** ${{ steps.labels.outputs.case_type }}
+            - **Repository:** ${{ steps.extract.outputs.repo_full_name }}
+            
+            ---
+            *Automated via GitHub to ServiceNow Integration*`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
+      
+      - name: Comment on Issue - Failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## ❌ ServiceNow Integration Failed
+              
+              There was an error processing this issue.
+              
+              **Please check:**
+              - The [workflow run logs](${context.payload.repository.html_url}/actions/runs/${context.runId})
+              - Your ServiceNow endpoint is accessible
+              - The payload format is correct
+              
+              You can retry by:
+              1. Removing the \`send-to-servicenow\` label
+              2. Adding it back
+              3. Closing and reopening the issue`
+            });
