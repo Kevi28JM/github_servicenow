@@ -148,7 +148,7 @@ jobs:
         if: contains(github.event.issue.labels.*.name, 'send-to-servicenow')
         run: |
           # Your ServiceNow endpoint (update if needed)
-          SERVICENOW_URL="https://wso2sndev.wso2.com/api/wso2/test_sr"
+          SERVICENOW_URL="https://wso2sndev.service-now.com/api/wso2/test_sr"
           
           echo "Sending to ServiceNow: $SERVICENOW_URL"
           
