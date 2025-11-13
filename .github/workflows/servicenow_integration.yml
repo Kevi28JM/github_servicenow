@@ -1,4 +1,4 @@
-name: ServiceNow Integration
+name: ServiceNow Integration - FIXED
 
 on:
   issues:
@@ -15,7 +15,6 @@ jobs:
           curl https://api.ipify.org
           echo ""
 
-
       - name: Send Custom Payload to ServiceNow
         run: |
           # Extract GitHub issue data
@@ -27,8 +26,11 @@ jobs:
           REPO_NAME="${{ github.event.repository.name }}"
           REPO_FULL_NAME="${{ github.event.repository.full_name }}"
           
-          # Extract labels
-          LABELS=$(echo '${{ toJSON(github.event.issue.labels) }}' | jq -r '.[].name' | tr '\n' ',' | sed 's/,$//')
+          # Extract labels as array
+          LABELS_JSON='${{ toJSON(github.event.issue.labels) }}'
+          
+          # Extract labels as comma-separated string (for your flat format)
+          LABELS=$(echo "$LABELS_JSON" | jq -r '.[].name' | tr '\n' ',' | sed 's/,$//')
           
           # Determine environment from labels
           ENVIRONMENT="Development"
@@ -57,44 +59,50 @@ jobs:
           PRODUCT="WSO2 API Manager 1.10.0 Developer Portal"
           WSO2_PRODUCT="WSO2 API Manager Analytics"
           
-          # Create CUSTOM payload
+          # ============================================
+          # FIXED: Now includes "action" field at top level
+          # AND properly structured to match your ServiceNow script
+          # ============================================
+          
           CUSTOM_PAYLOAD=$(jq -n \
+            --arg action "opened" \
+            --argjson issue_number "$ISSUE_NUMBER" \
+            --arg issue_title "$ISSUE_TITLE" \
+            --arg issue_body "$ISSUE_BODY" \
+            --arg issue_url "$ISSUE_URL" \
+            --arg github_user "$GITHUB_USER" \
+            --arg repo_name "$REPO_NAME" \
+            --arg repo_full_name "$REPO_FULL_NAME" \
+            --argjson labels "$LABELS_JSON" \
             --arg project "$PROJECT" \
             --arg product "$PRODUCT" \
             --arg wso2_product "$WSO2_PRODUCT" \
             --arg environment "$ENVIRONMENT" \
             --arg case_type "$CASE_TYPE" \
             --arg priority "$PRIORITY" \
-            --arg title "$ISSUE_TITLE" \
-            --arg body "$ISSUE_BODY" \
-            --arg issue_number "$ISSUE_NUMBER" \
-            --arg issue_url "$ISSUE_URL" \
-            --arg github_user "$GITHUB_USER" \
-            --arg repo_name "$REPO_NAME" \
-            --arg repo_full_name "$REPO_FULL_NAME" \
-            --arg labels "$LABELS" \
+            --arg labels_string "$LABELS" \
             '{
-              project: $project,
-              product: $product,
-              u_wso2_product: $wso2_product,
-              environment: $environment,
-              case_type: $case_type,
-              priority: $priority,
-              service_request_category: "GitHub Integration",
-              title: $title,
-              body: $body,
-              github_issue_number: $issue_number,
-              github_issue_url: $issue_url,
-              github_user: $github_user,
-              repository_name: $repo_name,
-              repository_full_name: $repo_full_name,
-              labels: $labels
+              action: $action,
+              issue: {
+                number: $issue_number,
+                title: $issue_title,
+                body: $issue_body,
+                html_url: $issue_url,
+                user: {
+                  login: $github_user
+                },
+                labels: $labels
+              },
+              repository: {
+                name: $repo_name,
+                full_name: $repo_full_name
+              }
             }')
           
           echo "Custom Payload:"
           echo "$CUSTOM_PAYLOAD" | jq '.'
           
-          # Send to ServiceNow (USE YOUR WORKING URL!)
+          # Send to ServiceNow
           HTTP_CODE=$(curl -X POST \
             -H "Content-Type: application/json" \
             -d "$CUSTOM_PAYLOAD" \
@@ -109,9 +117,68 @@ jobs:
           
           if [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "200" ]; then
             echo "✅ Successfully created case in ServiceNow"
+            
+            # Extract case details from response
+            CASE_NUMBER=$(cat response.json | jq -r '.case_number // empty')
+            REQUEST_NUMBER=$(cat response.json | jq -r '.request_number // empty')
+            RITM_NUMBER=$(cat response.json | jq -r '.ritm_number // empty')
+            
+            if [ -n "$CASE_NUMBER" ]; then
+              echo "📋 Case Number: $CASE_NUMBER"
+            fi
+            if [ -n "$REQUEST_NUMBER" ]; then
+              echo "📋 Request Number: $REQUEST_NUMBER"
+            fi
+            if [ -n "$RITM_NUMBER" ]; then
+              echo "📋 RITM Number: $RITM_NUMBER"
+            fi
+            
             exit 0
           else
             echo "❌ Failed to create case (HTTP $HTTP_CODE)"
             cat response.json
             exit 1
           fi
+      
+      - name: Comment on Issue
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let response = {};
+            try {
+              response = JSON.parse(fs.readFileSync('response.json', 'utf8'));
+            } catch (e) {
+              response = {};
+            }
+            
+            let recordsInfo = '';
+            if (response.request_number) recordsInfo += `- **Request:** ${response.request_number}\n`;
+            if (response.ritm_number) recordsInfo += `- **RITM:** ${response.ritm_number}\n`;
+            if (response.case_number) recordsInfo += `- **Case:** ${response.case_number}\n`;
+            
+            if (!recordsInfo) {
+              recordsInfo = '- Check ServiceNow for created records';
+            }
+            
+            const comment = `## ✅ ServiceNow Integration Complete
+            
+            Successfully sent issue to ServiceNow!
+            
+            ### 📋 Created Records
+            ${recordsInfo}
+            
+            ### 🔗 Links
+            - **GitHub Issue:** #${{ github.event.issue.number }}
+            - **Repository:** ${{ github.repository }}
+            
+            ---
+            *Automated via GitHub Actions*`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
