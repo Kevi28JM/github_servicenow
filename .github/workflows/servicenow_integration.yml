@@ -170,10 +170,10 @@ jobs:
             
             Successfully sent issue to ServiceNow!
             
-            ### 📋 Created Records
+            ###  Created Records
             ${recordsInfo}
             
-            ### 🔗 Links
+            ###  Links
             - **GitHub Issue:** #${{ github.event.issue.number }}
             - **Repository:** ${{ github.repository }}
             
