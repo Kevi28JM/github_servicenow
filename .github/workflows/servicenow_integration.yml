@@ -101,7 +101,7 @@ jobs:
             -w "%{http_code}" \
             -o response.json \
             -s \
-            https://wso2sndev.wso2.com/api/wso2/test_sr)
+            https://wso2sndev.service-now.com/api/wso2/test_sr)
           
           echo "HTTP Status: $HTTP_CODE"
           echo "ServiceNow Response:"
