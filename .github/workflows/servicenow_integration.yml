@@ -138,14 +138,14 @@ jobs:
           CATALOG_ITEM="${{ steps.extract_fields.outputs.catalog_item }}"
           LABELS="${{ steps.extract_fields.outputs.labels }}"
           
-          echo "================================================"
+           
           echo "Building Clean Payload"
-          echo "================================================"
+           
           echo "Priority: $PRIORITY (from template)"
           echo "Environment: $ENVIRONMENT (from template)"
           echo "Case Type: $CASE_TYPE (from labels)"
           echo "Catalog: $CATALOG_ITEM (from labels)"
-          echo "================================================"
+          
           
           # Build minimal payload with template values
           PAYLOAD=$(jq -n \
