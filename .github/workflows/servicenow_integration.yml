@@ -13,50 +13,99 @@ jobs:
     runs-on: ubuntu-latest
     steps:
 
-      - name: Build Minimal Payload
-        id: build_payload
+      - name: Extract Template Fields
+        id: extract_fields
         run: |
-          # Extract only what we need
-          ISSUE_NUMBER="${{ github.event.issue.number }}"
-          ISSUE_TITLE='${{ github.event.issue.title }}'
+          # Get the issue body
           ISSUE_BODY='${{ github.event.issue.body }}'
-          ISSUE_URL="${{ github.event.issue.html_url }}"
-          GITHUB_USER="${{ github.event.issue.user.login }}"
-          REPO_NAME="${{ github.event.repository.name }}"
-          REPO_FULL_NAME="${{ github.event.repository.full_name }}"
           
-          # Process labels to get mapped values
-          LABELS_JSON='${{ toJSON(github.event.issue.labels) }}'
-          LABELS_STRING=$(echo "$LABELS_JSON" | jq -r '.[].name' | tr '\n' ',' | sed 's/,$//')
+          echo "Extracting template fields..."
           
-          # Map environment
-          ENVIRONMENT="Development"
-          if echo "$LABELS_STRING" | grep -qi "production\|prod"; then
+          # Function to extract field value from GitHub issue form
+          extract_field() {
+            field_name="$1"
+            # GitHub forms use ### FieldName format
+            value=$(echo "$ISSUE_BODY" | grep -A 2 "### $field_name" | tail -n 1 | xargs)
+            
+            # Handle "No response" or empty
+            if [ -z "$value" ] || [ "$value" = "_No response_" ] || [ "$value" = "No response" ]; then
+              echo ""
+            else
+              echo "$value"
+            fi
+          }
+          
+          # Extract Priority from template
+          PRIORITY_RAW=$(extract_field "Priority")
+          echo "Raw Priority: '$PRIORITY_RAW'"
+          
+          # Map to ServiceNow format
+          case "$PRIORITY_RAW" in
+            "Critical")
+              PRIORITY="1 - Critical"
+              ;;
+            "High")
+              PRIORITY="2 - High"
+              ;;
+            "Moderate")
+              PRIORITY="3 - Moderate"
+              ;;
+            "Low")
+              PRIORITY="4 - Low"
+              ;;
+            *)
+              PRIORITY="3 - Moderate"  # Default
+              ;;
+          esac
+          
+          echo "Mapped Priority: $PRIORITY"
+          echo "priority=$PRIORITY" >> $GITHUB_OUTPUT
+          
+          # Extract Environment Details from template
+          ENV_RAW=$(extract_field "Environment Details")
+          echo "Raw Environment: '$ENV_RAW'"
+          
+          # Handle multiple environments (comma-separated or line-separated)
+          # GitHub checkboxes return like: "Env/Development, Env/Production"
+          ENVIRONMENT="Development"  # Default
+          
+          if echo "$ENV_RAW" | grep -qi "Env/Production\|Production"; then
             ENVIRONMENT="Production"
-          elif echo "$LABELS_STRING" | grep -qi "staging\|stage"; then
+          elif echo "$ENV_RAW" | grep -qi "Env/Staging\|Staging"; then
+            ENVIRONMENT="Staging"
+          elif echo "$ENV_RAW" | grep -qi "Env/Development\|Development"; then
+            ENVIRONMENT="Development"
+          fi
+          
+          # If multiple environments selected, use the highest priority one
+          # Priority: Production > Staging > Development
+          if echo "$ENV_RAW" | grep -qi "Production"; then
+            ENVIRONMENT="Production"
+          elif echo "$ENV_RAW" | grep -qi "Staging"; then
             ENVIRONMENT="Staging"
           fi
           
-          # Map priority
-          PRIORITY="Moderate"
-          if echo "$LABELS_STRING" | grep -qi "high-priority\|critical\|urgent"; then
-            PRIORITY="1 - Critical"
-          elif echo "$LABELS_STRING" | grep -qi "medium-priority\|high"; then
-            PRIORITY="2 - High"
-          elif echo "$LABELS_STRING" | grep -qi "low-priority\|low"; then
-            PRIORITY="4 - Low"
-          fi
+          echo "Mapped Environment: $ENVIRONMENT"
+          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+          echo "environment_raw=$ENV_RAW" >> $GITHUB_OUTPUT
           
-          # Map case type
-          CASE_TYPE="Service Request"
+          # Determine case type from labels (fallback if no template field)
+          LABELS_JSON='${{ toJSON(github.event.issue.labels) }}'
+          LABELS_STRING=$(echo "$LABELS_JSON" | jq -r '.[].name' | tr '\n' ',' | sed 's/,$//')
+          
+          CASE_TYPE="Service Request"  # Default
           if echo "$LABELS_STRING" | grep -qi "bug\|incident\|defect"; then
             CASE_TYPE="Incident"
           elif echo "$LABELS_STRING" | grep -qi "feature\|enhancement\|request"; then
             CASE_TYPE="Service Request"
           fi
           
-          # Map catalog item from labels
-          CATALOG_ITEM="General Requests"
+          echo "Case Type: $CASE_TYPE"
+          echo "case_type=$CASE_TYPE" >> $GITHUB_OUTPUT
+          echo "labels=$LABELS_STRING" >> $GITHUB_OUTPUT
+          
+          # Determine catalog item from labels or default
+          CATALOG_ITEM="GitHub Issue Integration"
           if echo "$LABELS_STRING" | grep -qi "bug\|incident"; then
             CATALOG_ITEM="Incident Management"
           elif echo "$LABELS_STRING" | grep -qi "feature\|enhancement"; then
@@ -65,10 +114,40 @@ jobs:
             CATALOG_ITEM="Technical Support"
           fi
           
-          # 
-          # CLEAN MINIMAL PAYLOAD FOR SERVICENOW
-          # 
+          echo "Catalog Item: $CATALOG_ITEM"
+          echo "catalog_item=$CATALOG_ITEM" >> $GITHUB_OUTPUT
           
+          echo ""
+          echo "✅ Template fields extracted successfully"
+
+      - name: Build Clean Payload
+        id: build_payload
+        run: |
+          ISSUE_NUMBER="${{ github.event.issue.number }}"
+          ISSUE_TITLE='${{ github.event.issue.title }}'
+          ISSUE_BODY='${{ github.event.issue.body }}'
+          ISSUE_URL="${{ github.event.issue.html_url }}"
+          GITHUB_USER="${{ github.event.issue.user.login }}"
+          REPO_NAME="${{ github.event.repository.name }}"
+          REPO_FULL_NAME="${{ github.event.repository.full_name }}"
+          
+          # Use extracted values
+          PRIORITY="${{ steps.extract_fields.outputs.priority }}"
+          ENVIRONMENT="${{ steps.extract_fields.outputs.environment }}"
+          CASE_TYPE="${{ steps.extract_fields.outputs.case_type }}"
+          CATALOG_ITEM="${{ steps.extract_fields.outputs.catalog_item }}"
+          LABELS="${{ steps.extract_fields.outputs.labels }}"
+          
+          echo "================================================"
+          echo "Building Clean Payload"
+          echo "================================================"
+          echo "Priority: $PRIORITY (from template)"
+          echo "Environment: $ENVIRONMENT (from template)"
+          echo "Case Type: $CASE_TYPE (from labels)"
+          echo "Catalog: $CATALOG_ITEM (from labels)"
+          echo "================================================"
+          
+          # Build minimal payload with template values
           PAYLOAD=$(jq -n \
             --arg title "$ISSUE_TITLE" \
             --arg description "$ISSUE_BODY" \
@@ -77,7 +156,7 @@ jobs:
             --arg github_user "$GITHUB_USER" \
             --arg repo_name "$REPO_NAME" \
             --arg repo_full_name "$REPO_FULL_NAME" \
-            --arg labels "$LABELS_STRING" \
+            --arg labels "$LABELS" \
             --arg environment "$ENVIRONMENT" \
             --arg priority "$PRIORITY" \
             --arg case_type "$CASE_TYPE" \
@@ -99,20 +178,19 @@ jobs:
           
           echo "$PAYLOAD" > payload.json
           
-      
-          echo "CLEAN MINIMAL PAYLOAD"
-          
-          cat payload.json | jq '.'
-          
           echo ""
-        
-      
+          echo "Final Payload:"
+          cat payload.json | jq '.'
+          echo ""
+          echo "✅ Payload built with template-extracted values"
+
       - name: Send to ServiceNow
+        id: send_servicenow
         run: |
-          # Your ServiceNow endpoint
           SERVICENOW_URL="https://wso2sndev.service-now.com/api/wso2/test_sr"
           
-          echo "Sending clean payload to ServiceNow..."
+          echo "Sending to ServiceNow: $SERVICENOW_URL"
+          echo ""
           
           HTTP_CODE=$(curl -X POST \
             -H "Content-Type: application/json" \
@@ -132,10 +210,14 @@ jobs:
           if [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "200" ]; then
             echo "✅ Successfully created case in ServiceNow"
             
-            # Extract case details
+            # Extract response details
             CASE_NUMBER=$(cat response.json | jq -r '.case_number // empty')
             REQUEST_NUMBER=$(cat response.json | jq -r '.request_number // empty')
             RITM_NUMBER=$(cat response.json | jq -r '.ritm_number // empty')
+            
+            echo "case_number=$CASE_NUMBER" >> $GITHUB_OUTPUT
+            echo "request_number=$REQUEST_NUMBER" >> $GITHUB_OUTPUT
+            echo "ritm_number=$RITM_NUMBER" >> $GITHUB_OUTPUT
             
             if [ -n "$CASE_NUMBER" ]; then
               echo "Case: $CASE_NUMBER"
@@ -152,8 +234,8 @@ jobs:
             echo "❌ Failed to create case (HTTP $HTTP_CODE)"
             exit 1
           fi
-      
-      - name: Comment on Issue
+
+      - name: Comment on Issue - Success
         if: success()
         uses: actions/github-script@v7
         with:
@@ -162,28 +244,69 @@ jobs:
             let response = {};
             try {
               response = JSON.parse(fs.readFileSync('response.json', 'utf8'));
-            } catch (e) {}
+            } catch (e) {
+              console.log('Could not read response:', e);
+            }
             
             let records = '';
-            if (response.request_number) records += `- **Request:** ${response.request_number}\n`;
-            if (response.ritm_number) records += `- **RITM:** ${response.ritm_number}\n`;
-            if (response.case_number) records += `- **Case:** ${response.case_number}\n`;
+            if (response.request_number) {
+              records += '- **Request:** ' + response.request_number + '\n';
+            }
+            if (response.ritm_number) {
+              records += '- **RITM:** ' + response.ritm_number + '\n';
+            }
+            if (response.case_number) {
+              records += '- **Case:** ' + response.case_number + '\n';
+            }
             
-            if (!records) records = '- Check ServiceNow for created records';
+            if (!records) {
+              records = '- Check ServiceNow for created records';
+            }
+            
+            const priority = '${{ steps.extract_fields.outputs.priority }}';
+            const environment = '${{ steps.extract_fields.outputs.environment }}';
+            const envRaw = '${{ steps.extract_fields.outputs.environment_raw }}';
+            const caseType = '${{ steps.extract_fields.outputs.case_type }}';
+            const catalogItem = '${{ steps.extract_fields.outputs.catalog_item }}';
+            
+            const commentBody = '## ✅ ServiceNow Case Created\n\n' +
+              records + '\n' +
+              '**Template Values:**\n' +
+              '- Priority: ' + priority + '\n' +
+              '- Environment: ' + environment + (envRaw ? ' (selected: ' + envRaw + ')' : '') + '\n' +
+              '- Type: ' + caseType + '\n' +
+              '- Catalog: ' + catalogItem + '\n\n' +
+              '---\n' +
+              '*Automated via GitHub Actions - Values extracted from issue template*';
             
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: `## ✅ ServiceNow Case Created
-              
-              ${records}
-              
-              **Details:**
-              - Priority: ${response.mapped_fields?.priority || 'N/A'}
-              - Environment: ${response.mapped_fields?.environment || 'N/A'}
-              - Type: ${response.mapped_fields?.case_type || 'N/A'}
-              
-              ---
-              *Automated via GitHub Actions*`
+              body: commentBody
+            });
+
+      - name: Comment on Issue - Failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const priority = '${{ steps.extract_fields.outputs.priority }}';
+            const environment = '${{ steps.extract_fields.outputs.environment }}';
+            
+            const commentBody = '## ❌ ServiceNow Case Creation Failed\n\n' +
+              'Failed to create case in ServiceNow.\n\n' +
+              '**Extracted Values:**\n' +
+              '- Priority: ' + priority + '\n' +
+              '- Environment: ' + environment + '\n\n' +
+              '**Error Details:**\n' +
+              'Check the [workflow logs](' + context.payload.repository.html_url + '/actions/runs/' + context.runId + ') for details.\n\n' +
+              '---\n' +
+              '*Please contact support if the issue persists.*';
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: commentBody
             });
