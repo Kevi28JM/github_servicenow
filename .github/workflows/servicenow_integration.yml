@@ -1,4 +1,4 @@
-name: ServiceNow Integration - Clean Payload
+name: ServiceNow Integration
 
 on:
   issues:
@@ -38,7 +38,7 @@ jobs:
           fi
           
           # Map priority
-          PRIORITY="3 - Moderate"
+          PRIORITY="Moderate"
           if echo "$LABELS_STRING" | grep -qi "high-priority\|critical\|urgent"; then
             PRIORITY="1 - Critical"
           elif echo "$LABELS_STRING" | grep -qi "medium-priority\|high"; then
@@ -56,7 +56,7 @@ jobs:
           fi
           
           # Map catalog item from labels
-          CATALOG_ITEM="GitHub Issue Integration"
+          CATALOG_ITEM="General Requests"
           if echo "$LABELS_STRING" | grep -qi "bug\|incident"; then
             CATALOG_ITEM="Incident Management"
           elif echo "$LABELS_STRING" | grep -qi "feature\|enhancement"; then
@@ -65,9 +65,9 @@ jobs:
             CATALOG_ITEM="Technical Support"
           fi
           
-          # ============================================
+          # 
           # CLEAN MINIMAL PAYLOAD FOR SERVICENOW
-          # ============================================
+          # 
           
           PAYLOAD=$(jq -n \
             --arg title "$ISSUE_TITLE" \
@@ -99,16 +99,13 @@ jobs:
           
           echo "$PAYLOAD" > payload.json
           
-          echo "================================================"
+      
           echo "CLEAN MINIMAL PAYLOAD"
-          echo "================================================"
+          
           cat payload.json | jq '.'
-          echo "================================================"
+          
           echo ""
-          echo "✅ No nested structures"
-          echo "✅ No unnecessary GitHub webhook fields"
-          echo "✅ All values pre processed"
-          echo "✅ Ready for ServiceNow"
+        
       
       - name: Send to ServiceNow
         run: |
