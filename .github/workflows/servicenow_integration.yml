@@ -1,146 +1,154 @@
-name: ServiceNow Integration - FIXED
+name: ServiceNow Integration - Clean Payload
 
 on:
   issues:
     types: [opened]
-
-permissions:
-  issues: write
-  contents: read
 
 jobs:
   send-to-servicenow:
     runs-on: ubuntu-latest
     steps:
 
-      - name: Check GitHub Actions IP
+      - name: Build Minimal Payload
+        id: build_payload
         run: |
-          echo "GitHub Actions IP Address:"
-          curl https://api.ipify.org
-          echo ""
-
-      - name: Send Custom Payload to ServiceNow
-        run: |
-          # Extract GitHub issue data
+          # Extract only what we need
           ISSUE_NUMBER="${{ github.event.issue.number }}"
-          ISSUE_TITLE=$(echo '${{ toJSON(github.event.issue.title) }}' | jq -r '.')
-          ISSUE_BODY=$(echo '${{ toJSON(github.event.issue.body) }}' | jq -r '.')
+          ISSUE_TITLE='${{ github.event.issue.title }}'
+          ISSUE_BODY='${{ github.event.issue.body }}'
           ISSUE_URL="${{ github.event.issue.html_url }}"
           GITHUB_USER="${{ github.event.issue.user.login }}"
           REPO_NAME="${{ github.event.repository.name }}"
           REPO_FULL_NAME="${{ github.event.repository.full_name }}"
           
-          # Extract labels as array
+          # Process labels to get mapped values
           LABELS_JSON='${{ toJSON(github.event.issue.labels) }}'
+          LABELS_STRING=$(echo "$LABELS_JSON" | jq -r '.[].name' | tr '\n' ',' | sed 's/,$//')
           
-          # Extract labels as comma-separated string (for your flat format)
-          LABELS=$(echo "$LABELS_JSON" | jq -r '.[].name' | tr '\n' ',' | sed 's/,$//')
-          
-          # Determine environment from labels
+          # Map environment
           ENVIRONMENT="Development"
-          if echo "$LABELS" | grep -qi "production\|prod"; then
+          if echo "$LABELS_STRING" | grep -qi "production\|prod"; then
             ENVIRONMENT="Production"
-          elif echo "$LABELS" | grep -qi "staging\|stage"; then
+          elif echo "$LABELS_STRING" | grep -qi "staging\|stage"; then
             ENVIRONMENT="Staging"
           fi
           
-          # Determine priority from labels
+          # Map priority
           PRIORITY="3 - Moderate"
-          if echo "$LABELS" | grep -qi "high-priority\|critical"; then
+          if echo "$LABELS_STRING" | grep -qi "high-priority\|critical\|urgent"; then
             PRIORITY="1 - Critical"
-          elif echo "$LABELS" | grep -qi "medium-priority"; then
+          elif echo "$LABELS_STRING" | grep -qi "medium-priority\|high"; then
             PRIORITY="2 - High"
+          elif echo "$LABELS_STRING" | grep -qi "low-priority\|low"; then
+            PRIORITY="4 - Low"
           fi
           
-          # Determine case type from labels
+          # Map case type
           CASE_TYPE="Service Request"
-          if echo "$LABELS" | grep -qi "bug\|incident"; then
+          if echo "$LABELS_STRING" | grep -qi "bug\|incident\|defect"; then
             CASE_TYPE="Incident"
+          elif echo "$LABELS_STRING" | grep -qi "feature\|enhancement\|request"; then
+            CASE_TYPE="Service Request"
           fi
           
-          # Map repo to project/product
-          PROJECT="Customer Portal Customer Project1 - Subscription"
-          PRODUCT="WSO2 API Manager 1.10.0 Developer Portal"
-          WSO2_PRODUCT="WSO2 API Manager Analytics"
+          # Map catalog item from labels
+          CATALOG_ITEM="GitHub Issue Integration"
+          if echo "$LABELS_STRING" | grep -qi "bug\|incident"; then
+            CATALOG_ITEM="Incident Management"
+          elif echo "$LABELS_STRING" | grep -qi "feature\|enhancement"; then
+            CATALOG_ITEM="Service Request"
+          elif echo "$LABELS_STRING" | grep -qi "support\|question"; then
+            CATALOG_ITEM="Technical Support"
+          fi
           
           # ============================================
-          # FIXED: Now includes "action" field at top level
-          # AND properly structured to match your ServiceNow script
+          # CLEAN MINIMAL PAYLOAD FOR SERVICENOW
           # ============================================
           
-          CUSTOM_PAYLOAD=$(jq -n \
-            --arg action "opened" \
-            --argjson issue_number "$ISSUE_NUMBER" \
-            --arg issue_title "$ISSUE_TITLE" \
-            --arg issue_body "$ISSUE_BODY" \
+          PAYLOAD=$(jq -n \
+            --arg title "$ISSUE_TITLE" \
+            --arg description "$ISSUE_BODY" \
+            --arg issue_number "$ISSUE_NUMBER" \
             --arg issue_url "$ISSUE_URL" \
             --arg github_user "$GITHUB_USER" \
             --arg repo_name "$REPO_NAME" \
             --arg repo_full_name "$REPO_FULL_NAME" \
-            --argjson labels "$LABELS_JSON" \
-            --arg project "$PROJECT" \
-            --arg product "$PRODUCT" \
-            --arg wso2_product "$WSO2_PRODUCT" \
+            --arg labels "$LABELS_STRING" \
             --arg environment "$ENVIRONMENT" \
-            --arg case_type "$CASE_TYPE" \
             --arg priority "$PRIORITY" \
-            --arg labels_string "$LABELS" \
+            --arg case_type "$CASE_TYPE" \
+            --arg catalog_item "$CATALOG_ITEM" \
             '{
-              action: $action,
-              issue: {
-                number: $issue_number,
-                title: $issue_title,
-                body: $issue_body,
-                html_url: $issue_url,
-                user: {
-                  login: $github_user
-                },
-                labels: $labels
-              },
-              repository: {
-                name: $repo_name,
-                full_name: $repo_full_name
-              }
+              title: $title,
+              description: $description,
+              issue_number: $issue_number,
+              issue_url: $issue_url,
+              github_user: $github_user,
+              repository_name: $repo_name,
+              repository_full_name: $repo_full_name,
+              labels: $labels,
+              environment: $environment,
+              priority: $priority,
+              case_type: $case_type,
+              catalog_item: $catalog_item
             }')
           
-          echo "Custom Payload:"
-          echo "$CUSTOM_PAYLOAD" | jq '.'
+          echo "$PAYLOAD" > payload.json
           
-          # Send to ServiceNow
+          echo "================================================"
+          echo "CLEAN MINIMAL PAYLOAD"
+          echo "================================================"
+          cat payload.json | jq '.'
+          echo "================================================"
+          echo ""
+          echo "✅ No nested structures"
+          echo "✅ No unnecessary GitHub webhook fields"
+          echo "✅ All values pre processed"
+          echo "✅ Ready for ServiceNow"
+      
+      - name: Send to ServiceNow
+        run: |
+          # Your ServiceNow endpoint
+          SERVICENOW_URL="https://wso2sndev.service-now.com/api/wso2/test_sr"
+          
+          echo "Sending clean payload to ServiceNow..."
+          
           HTTP_CODE=$(curl -X POST \
             -H "Content-Type: application/json" \
-            -d "$CUSTOM_PAYLOAD" \
+            -H "User-Agent: GitHub-Actions-WSO2/1.0" \
+            -d @payload.json \
             -w "%{http_code}" \
             -o response.json \
             -s \
-            https://wso2sndev.service-now.com/api/wso2/test_sr)
+            "$SERVICENOW_URL")
           
           echo "HTTP Status: $HTTP_CODE"
+          echo ""
           echo "ServiceNow Response:"
           cat response.json | jq '.' || cat response.json
+          echo ""
           
           if [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "200" ]; then
             echo "✅ Successfully created case in ServiceNow"
             
-            # Extract case details from response
+            # Extract case details
             CASE_NUMBER=$(cat response.json | jq -r '.case_number // empty')
             REQUEST_NUMBER=$(cat response.json | jq -r '.request_number // empty')
             RITM_NUMBER=$(cat response.json | jq -r '.ritm_number // empty')
             
             if [ -n "$CASE_NUMBER" ]; then
-              echo "📋 Case Number: $CASE_NUMBER"
+              echo "Case: $CASE_NUMBER"
             fi
             if [ -n "$REQUEST_NUMBER" ]; then
-              echo "📋 Request Number: $REQUEST_NUMBER"
+              echo "Request: $REQUEST_NUMBER"
             fi
             if [ -n "$RITM_NUMBER" ]; then
-              echo "📋 RITM Number: $RITM_NUMBER"
+              echo "RITM: $RITM_NUMBER"
             fi
             
             exit 0
           else
             echo "❌ Failed to create case (HTTP $HTTP_CODE)"
-            cat response.json
             exit 1
           fi
       
@@ -153,36 +161,28 @@ jobs:
             let response = {};
             try {
               response = JSON.parse(fs.readFileSync('response.json', 'utf8'));
-            } catch (e) {
-              response = {};
-            }
+            } catch (e) {}
             
-            let recordsInfo = '';
-            if (response.request_number) recordsInfo += `- **Request:** ${response.request_number}\n`;
-            if (response.ritm_number) recordsInfo += `- **RITM:** ${response.ritm_number}\n`;
-            if (response.case_number) recordsInfo += `- **Case:** ${response.case_number}\n`;
+            let records = '';
+            if (response.request_number) records += `- **Request:** ${response.request_number}\n`;
+            if (response.ritm_number) records += `- **RITM:** ${response.ritm_number}\n`;
+            if (response.case_number) records += `- **Case:** ${response.case_number}\n`;
             
-            if (!recordsInfo) {
-              recordsInfo = '- Check ServiceNow for created records';
-            }
-            
-            const comment = `## ✅ ServiceNow Integration Complete
-            
-            Successfully sent issue to ServiceNow!
-            
-            ###  Created Records
-            ${recordsInfo}
-            
-            ###  Links
-            - **GitHub Issue:** #${{ github.event.issue.number }}
-            - **Repository:** ${{ github.repository }}
-            
-            ---
-            *Automated via GitHub Actions*`;
+            if (!records) records = '- Check ServiceNow for created records';
             
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
-              body: comment
+              body: `## ✅ ServiceNow Case Created
+              
+              ${records}
+              
+              **Details:**
+              - Priority: ${response.mapped_fields?.priority || 'N/A'}
+              - Environment: ${response.mapped_fields?.environment || 'N/A'}
+              - Type: ${response.mapped_fields?.case_type || 'N/A'}
+              
+              ---
+              *Automated via GitHub Actions*`
             });
