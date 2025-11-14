@@ -67,7 +67,7 @@ jobs:
           
           # Handle multiple environments (comma-separated or line-separated)
           # GitHub checkboxes return like: "Env/Development, Env/Production"
-          ENVIRONMENT="Development"  # Default
+          #ENVIRONMENT="Development"  # Default
           
           if echo "$ENV_RAW" | grep -qi "Env/Production\|Production"; then
             ENVIRONMENT="Production"
@@ -105,7 +105,7 @@ jobs:
           echo "labels=$LABELS_STRING" >> $GITHUB_OUTPUT
           
           # Determine catalog item from labels or default
-          CATALOG_ITEM="GitHub Issue Integration"
+          CATALOG_ITEM="General Request"
           if echo "$LABELS_STRING" | grep -qi "bug\|incident"; then
             CATALOG_ITEM="Incident Management"
           elif echo "$LABELS_STRING" | grep -qi "feature\|enhancement"; then
