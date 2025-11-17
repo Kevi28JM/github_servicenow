@@ -35,6 +35,14 @@ jobs:
             fi
           }
           
+          #Hardcode default values
+          PRODUCT="WSO2 API Manager 1.10.0 Developer Portal"
+          PROJECT="Customer Portal Customer Project1 - Subscription"
+
+          echo "product=$PRODUCT" >> $GITHUB_OUTPUT
+          echo "project=$PROJECT" >> $GITHUB_OUTPUT
+
+
           # Extract Priority from template
           PRIORITY_RAW=$(extract_field "Priority")
           echo "Raw Priority: '$PRIORITY_RAW'"
@@ -137,6 +145,8 @@ jobs:
           CASE_TYPE="${{ steps.extract_fields.outputs.case_type }}"
           CATALOG_ITEM="${{ steps.extract_fields.outputs.catalog_item }}"
           LABELS="${{ steps.extract_fields.outputs.labels }}"
+          PRODUCT="${{ steps.extract_fields.outputs.product }}"
+          PROJECT="${{ steps.extract_fields.outputs.project }}"
           
            
           echo "Building Clean Payload"
@@ -145,6 +155,8 @@ jobs:
           echo "Environment: $ENVIRONMENT (from template)"
           echo "Case Type: $CASE_TYPE (from labels)"
           echo "Catalog: $CATALOG_ITEM (from labels)"
+          echo "Product: $PRODUCT (hardcoded)"
+          echo "Project: $PROJECT (hardcoded)"
           
           
           # Build minimal payload with template values
@@ -161,6 +173,8 @@ jobs:
             --arg priority "$PRIORITY" \
             --arg case_type "$CASE_TYPE" \
             --arg catalog_item "$CATALOG_ITEM" \
+            --arg product "$PRODUCT" \
+            --arg project "$PROJECT" \
             '{
               title: $title,
               description: $description,
@@ -173,7 +187,9 @@ jobs:
               environment: $environment,
               priority: $priority,
               case_type: $case_type,
-              catalog_item: $catalog_item
+              catalog_item: $catalog_item,
+              product: $product,
+              project: $project
             }')
           
           echo "$PAYLOAD" > payload.json
@@ -268,6 +284,8 @@ jobs:
             const envRaw = '${{ steps.extract_fields.outputs.environment_raw }}';
             const caseType = '${{ steps.extract_fields.outputs.case_type }}';
             const catalogItem = '${{ steps.extract_fields.outputs.catalog_item }}';
+            const product = '${{ steps.extract_fields.outputs.product }}';
+            const project = '${{ steps.extract_fields.outputs.project }}';
             
             const commentBody = '## ✅ ServiceNow Case Created\n\n' +
               records + '\n' +
