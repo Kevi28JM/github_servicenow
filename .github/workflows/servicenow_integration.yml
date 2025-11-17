@@ -153,10 +153,9 @@ jobs:
            
           echo "Priority: $PRIORITY (from template)"
           echo "Environment: $ENVIRONMENT (from template)"
+          echo "Product: $PRODUCT (hardcoded)"
           echo "Case Type: $CASE_TYPE (from labels)"
           echo "Catalog: $CATALOG_ITEM (from labels)"
-          echo "Product: $PRODUCT (hardcoded)"
-          echo "Project: $PROJECT (hardcoded)"
           
           
           # Build minimal payload with template values
@@ -230,10 +229,14 @@ jobs:
             CASE_NUMBER=$(cat response.json | jq -r '.case_number // empty')
             REQUEST_NUMBER=$(cat response.json | jq -r '.request_number // empty')
             RITM_NUMBER=$(cat response.json | jq -r '.ritm_number // empty')
+            MAPPED_PRODUCT=$(cat response.json | jq -r '.product // empty')
+            MAPPED_PROJECT=$(cat response.json | jq -r '.project // empty')
             
             echo "case_number=$CASE_NUMBER" >> $GITHUB_OUTPUT
             echo "request_number=$REQUEST_NUMBER" >> $GITHUB_OUTPUT
             echo "ritm_number=$RITM_NUMBER" >> $GITHUB_OUTPUT
+            echo "mapped_product=$MAPPED_PRODUCT" >> $GITHUB_OUTPUT
+            echo "mapped_project=$MAPPED_PROJECT" >> $GITHUB_OUTPUT
             
             if [ -n "$CASE_NUMBER" ]; then
               echo "Case: $CASE_NUMBER"
@@ -295,6 +298,8 @@ jobs:
               '- Type: ' + caseType + '\n' +
               '- Catalog: ' + catalogItem + '\n\n' +
               '---\n' +
+              '- Product: ' + product + '\n' +
+              '- Project: ' + project + '\n\n' +
               '*Automated via GitHub Actions - Values extracted from issue template*';
             
             await github.rest.issues.createComment({
@@ -311,12 +316,14 @@ jobs:
           script: |
             const priority = '${{ steps.extract_fields.outputs.priority }}';
             const environment = '${{ steps.extract_fields.outputs.environment }}';
+            const project = '${{ steps.extract_fields.outputs.project }}';
             
             const commentBody = '## ❌ ServiceNow Case Creation Failed\n\n' +
               'Failed to create case in ServiceNow.\n\n' +
               '**Extracted Values:**\n' +
               '- Priority: ' + priority + '\n' +
               '- Environment: ' + environment + '\n\n' +
+              '- Project: ' + project + '\n\n' +
               '**Error Details:**\n' +
               'Check the [workflow logs](' + context.payload.repository.html_url + '/actions/runs/' + context.runId + ') for details.\n\n' +
               '---\n' +
