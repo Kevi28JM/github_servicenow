@@ -1,3 +1,5 @@
+name: ServiceNow Integration
+
 on:
   issues:
     types: [opened]
@@ -6,7 +8,7 @@ permissions:
  issues: write
  contents: read
 
-# HARDCODE YOUR PROJECT AND PRODUCT HERE (per repository)
+# Hardcode the project and product
 env:
   SERVICENOW_PRODUCT: "WSO2 API Manager 1.10.0 Developer Portal"
   SERVICENOW_PROJECT: "Customer Portal Customer Project1 - Subscription"
@@ -22,12 +24,12 @@ jobs:
           # Get the issue body
           ISSUE_BODY='${{ github.event.issue.body }}'
           
-          echo "Extracting template fields..."
+          echo "Extracting template fields"
           
-          # Function to extract field value from GitHub issue form
+          # Function to extract field value from github issue form
           extract_field() {
             field_name="$1"
-            # GitHub forms use ### FieldName format
+            # github forms use ### FieldName format
             value=$(echo "$ISSUE_BODY" | grep -A 2 "### $field_name" | tail -n 1 | xargs)
             
             # Handle "No response" or empty
@@ -68,20 +70,38 @@ jobs:
           ENV_RAW=$(extract_field "Environment Details")
           echo "Raw Environment: '$ENV_RAW'"
           
-          ENVIRONMENT="Development"  # Default
+          # Parse all selected environments
+          ENVIRONMENTS=""
+          PRIMARY_ENVIRONMENT="Development"  # Default
           
-          # If multiple environments selected, use the highest priority one
-          # Priority: Production > Staging > Development
+          # Check each environment and build comma-separated list
           if echo "$ENV_RAW" | grep -qi "Production"; then
-            ENVIRONMENT="Production"
-          elif echo "$ENV_RAW" | grep -qi "Staging"; then
-            ENVIRONMENT="Staging"
-          elif echo "$ENV_RAW" | grep -qi "Development"; then
-            ENVIRONMENT="Development"
+            ENVIRONMENTS="${ENVIRONMENTS}Production, "
+            PRIMARY_ENVIRONMENT="Production"  # Highest priority
+          fi
+          if echo "$ENV_RAW" | grep -qi "Staging"; then
+            ENVIRONMENTS="${ENVIRONMENTS}Staging, "
+            if [ "$PRIMARY_ENVIRONMENT" = "Development" ]; then
+              PRIMARY_ENVIRONMENT="Staging"  # Second priority
+            fi
+          fi
+          if echo "$ENV_RAW" | grep -qi "Development"; then
+            ENVIRONMENTS="${ENVIRONMENTS}Development, "
           fi
           
-          echo "Mapped Environment: $ENVIRONMENT"
-          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+          # Clean up trailing comma and space
+          ENVIRONMENTS=$(echo "$ENVIRONMENTS" | sed 's/, $//')
+          
+          # If no environments detected, use default
+          if [ -z "$ENVIRONMENTS" ]; then
+            ENVIRONMENTS="Development"
+            PRIMARY_ENVIRONMENT="Development"
+          fi
+          
+          echo "All Environments: $ENVIRONMENTS"
+          echo "Primary Environment: $PRIMARY_ENVIRONMENT (highest priority)"
+          echo "environment=$PRIMARY_ENVIRONMENT" >> $GITHUB_OUTPUT
+          echo "environments_all=$ENVIRONMENTS" >> $GITHUB_OUTPUT
           echo "environment_raw=$ENV_RAW" >> $GITHUB_OUTPUT
           
           # Determine case type from labels (fallback if no template field)
