@@ -188,7 +188,7 @@ jobs:
             --arg repo_full_name "$REPO_FULL_NAME" \
             --arg labels "$LABELS" \
             --arg environment "$ENVIRONMENT" \
-            --arg all_environments "$ALL_ENVIRONMENTS" \  
+            --arg all_environments "$ALL_ENVIRONMENTS" \
             --arg priority "$PRIORITY" \
             --arg case_type "$CASE_TYPE" \
             --arg catalog_item "$CATALOG_ITEM" \
