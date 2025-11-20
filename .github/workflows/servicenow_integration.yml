@@ -1,5 +1,3 @@
-name: ServiceNow Integration
-
 on:
   issues:
     types: [opened]
@@ -7,6 +5,11 @@ on:
 permissions:
  issues: write
  contents: read
+
+# HARDCODE YOUR PROJECT AND PRODUCT HERE (per repository)
+env:
+  SERVICENOW_PRODUCT: "WSO2 API Manager 1.10.0 Developer Portal"
+  SERVICENOW_PROJECT: "Customer Portal Customer Project1 - Subscription"
 
 jobs:
   send-to-servicenow:
@@ -34,14 +37,6 @@ jobs:
               echo "$value"
             fi
           }
-          
-          #Hardcode default values
-          PRODUCT="WSO2 API Manager 1.10.0 Developer Portal"
-          PROJECT="Customer Portal Customer Project1 - Subscription"
-
-          echo "product=$PRODUCT" >> $GITHUB_OUTPUT
-          echo "project=$PROJECT" >> $GITHUB_OUTPUT
-
 
           # Extract Priority from template
           PRIORITY_RAW=$(extract_field "Priority")
@@ -73,17 +68,7 @@ jobs:
           ENV_RAW=$(extract_field "Environment Details")
           echo "Raw Environment: '$ENV_RAW'"
           
-          # Handle multiple environments (comma-separated or line-separated)
-          # GitHub checkboxes return like: "Env/Development, Env/Production"
-          #ENVIRONMENT="Development"  # Default
-          
-          if echo "$ENV_RAW" | grep -qi "Env/Production\|Production"; then
-            ENVIRONMENT="Production"
-          elif echo "$ENV_RAW" | grep -qi "Env/Staging\|Staging"; then
-            ENVIRONMENT="Staging"
-          elif echo "$ENV_RAW" | grep -qi "Env/Development\|Development"; then
-            ENVIRONMENT="Development"
-          fi
+          ENVIRONMENT="Development"  # Default
           
           # If multiple environments selected, use the highest priority one
           # Priority: Production > Staging > Development
@@ -91,6 +76,8 @@ jobs:
             ENVIRONMENT="Production"
           elif echo "$ENV_RAW" | grep -qi "Staging"; then
             ENVIRONMENT="Staging"
+          elif echo "$ENV_RAW" | grep -qi "Development"; then
+            ENVIRONMENT="Development"
           fi
           
           echo "Mapped Environment: $ENVIRONMENT"
@@ -145,15 +132,18 @@ jobs:
           CASE_TYPE="${{ steps.extract_fields.outputs.case_type }}"
           CATALOG_ITEM="${{ steps.extract_fields.outputs.catalog_item }}"
           LABELS="${{ steps.extract_fields.outputs.labels }}"
-          PRODUCT="${{ steps.extract_fields.outputs.product }}"
-          PROJECT="${{ steps.extract_fields.outputs.project }}"
+          
+          # Use hardcoded values from workflow env
+          PRODUCT="${{ env.SERVICENOW_PRODUCT }}"
+          PROJECT="${{ env.SERVICENOW_PROJECT }}"
           
            
           echo "Building Clean Payload"
            
           echo "Priority: $PRIORITY (from template)"
           echo "Environment: $ENVIRONMENT (from template)"
-          echo "Product: $PRODUCT (hardcoded)"
+          echo "Product: $PRODUCT (hardcoded in workflow)"
+          echo "Project: $PROJECT (hardcoded in workflow)"
           echo "Case Type: $CASE_TYPE (from labels)"
           echo "Catalog: $CATALOG_ITEM (from labels)"
           
@@ -229,14 +219,10 @@ jobs:
             CASE_NUMBER=$(cat response.json | jq -r '.case_number // empty')
             REQUEST_NUMBER=$(cat response.json | jq -r '.request_number // empty')
             RITM_NUMBER=$(cat response.json | jq -r '.ritm_number // empty')
-            MAPPED_PRODUCT=$(cat response.json | jq -r '.product // empty')
-            MAPPED_PROJECT=$(cat response.json | jq -r '.project // empty')
             
             echo "case_number=$CASE_NUMBER" >> $GITHUB_OUTPUT
             echo "request_number=$REQUEST_NUMBER" >> $GITHUB_OUTPUT
             echo "ritm_number=$RITM_NUMBER" >> $GITHUB_OUTPUT
-            echo "mapped_product=$MAPPED_PRODUCT" >> $GITHUB_OUTPUT
-            echo "mapped_project=$MAPPED_PROJECT" >> $GITHUB_OUTPUT
             
             if [ -n "$CASE_NUMBER" ]; then
               echo "Case: $CASE_NUMBER"
@@ -287,8 +273,8 @@ jobs:
             const envRaw = '${{ steps.extract_fields.outputs.environment_raw }}';
             const caseType = '${{ steps.extract_fields.outputs.case_type }}';
             const catalogItem = '${{ steps.extract_fields.outputs.catalog_item }}';
-            const product = '${{ steps.extract_fields.outputs.product }}';
-            const project = '${{ steps.extract_fields.outputs.project }}';
+            const product = '${{ env.SERVICENOW_PRODUCT }}';
+            const project = '${{ env.SERVICENOW_PROJECT }}';
             
             const commentBody = '## ✅ ServiceNow Case Created\n\n' +
               records + '\n' +
@@ -316,7 +302,7 @@ jobs:
           script: |
             const priority = '${{ steps.extract_fields.outputs.priority }}';
             const environment = '${{ steps.extract_fields.outputs.environment }}';
-            const project = '${{ steps.extract_fields.outputs.project }}';
+            const project = '${{ env.SERVICENOW_PROJECT }}';
             
             const commentBody = '## ❌ ServiceNow Case Creation Failed\n\n' +
               'Failed to create case in ServiceNow.\n\n' +
