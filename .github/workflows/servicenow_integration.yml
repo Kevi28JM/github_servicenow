@@ -149,6 +149,11 @@ jobs:
           # Use extracted values
           PRIORITY="${{ steps.extract_fields.outputs.priority }}"
           ENVIRONMENT="${{ steps.extract_fields.outputs.environment }}"
+
+           #full list of environments
+          ALL_ENVIRONMENTS="${{ steps.extract_fields.outputs.environments_all }}"
+          
+
           CASE_TYPE="${{ steps.extract_fields.outputs.case_type }}"
           CATALOG_ITEM="${{ steps.extract_fields.outputs.catalog_item }}"
           LABELS="${{ steps.extract_fields.outputs.labels }}"
@@ -162,6 +167,10 @@ jobs:
            
           echo "Priority: $PRIORITY (from template)"
           echo "Environment: $ENVIRONMENT (from template)"
+
+          #Show full environment list
+          echo "All Environments: $ALL_ENVIRONMENTS"
+
           echo "Product: $PRODUCT (hardcoded in workflow)"
           echo "Project: $PROJECT (hardcoded in workflow)"
           echo "Case Type: $CASE_TYPE (from labels)"
@@ -179,6 +188,7 @@ jobs:
             --arg repo_full_name "$REPO_FULL_NAME" \
             --arg labels "$LABELS" \
             --arg environment "$ENVIRONMENT" \
+            --arg all_environments "$ALL_ENVIRONMENTS" \  
             --arg priority "$PRIORITY" \
             --arg case_type "$CASE_TYPE" \
             --arg catalog_item "$CATALOG_ITEM" \
@@ -194,6 +204,7 @@ jobs:
               repository_full_name: $repo_full_name,
               labels: $labels,
               environment: $environment,
+              all_environments: $all_environments,
               priority: $priority,
               case_type: $case_type,
               catalog_item: $catalog_item,
