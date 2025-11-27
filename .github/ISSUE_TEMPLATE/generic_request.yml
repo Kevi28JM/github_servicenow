@@ -13,6 +13,16 @@ body:
     validations:
       required: true
 
+ # Hidden catalog item field - specifies which ServiceNow catalog to use
+  - type: input
+    id: catalog-item
+    attributes:
+      label: "ServiceNow Catalog Item"
+      description: "Do not modify. Specifies the catalog item in ServiceNow."
+      value: "General Requests"
+    validations:
+      required: true
+
 # Short Description (textarea)
   - type: textarea
     id: short_description
