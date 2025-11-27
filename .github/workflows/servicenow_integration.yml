@@ -40,6 +40,21 @@ jobs:
             fi
           }
 
+          # ============================================================
+          # EXTRACT CATALOG ITEM FROM TEMPLATE (NEW!)
+          # ============================================================
+          CATALOG_ITEM=$(extract_field "ServiceNow Catalog Item")
+          echo "Catalog Item from template: '$CATALOG_ITEM'"
+          
+          # Fallback to default if not found
+          if [ -z "$CATALOG_ITEM" ]; then
+            CATALOG_ITEM="General Requests"
+            echo "No catalog item found, using default: $CATALOG_ITEM"
+          fi
+          
+          echo "catalog_item=$CATALOG_ITEM" >> $GITHUB_OUTPUT
+
+
           # Extract Priority from template
           PRIORITY_RAW=$(extract_field "Priority")
           echo "Raw Priority: '$PRIORITY_RAW'"
@@ -119,21 +134,13 @@ jobs:
           echo "case_type=$CASE_TYPE" >> $GITHUB_OUTPUT
           echo "labels=$LABELS_STRING" >> $GITHUB_OUTPUT
           
-          # Determine catalog item from labels or default
-          CATALOG_ITEM="General Request"
-          if echo "$LABELS_STRING" | grep -qi "bug\|incident"; then
-            CATALOG_ITEM="Incident Management"
-          elif echo "$LABELS_STRING" | grep -qi "feature\|enhancement"; then
-            CATALOG_ITEM="Service Request"
-          elif echo "$LABELS_STRING" | grep -qi "support\|question"; then
-            CATALOG_ITEM="Technical Support"
-          fi
-          
-          echo "Catalog Item: $CATALOG_ITEM"
-          echo "catalog_item=$CATALOG_ITEM" >> $GITHUB_OUTPUT
-          
           echo ""
           echo "✅ Template fields extracted successfully"
+          echo "   📋 Catalog Item: $CATALOG_ITEM (from template)"
+          echo "   ⚡ Priority: $PRIORITY"
+          echo "   🌍 Environments: $ENVIRONMENTS"
+          echo "   📦 Case Type: $CASE_TYPE"
+ 
 
       - name: Build Clean Payload
         id: build_payload
@@ -174,7 +181,7 @@ jobs:
           echo "Product: $PRODUCT (hardcoded in workflow)"
           echo "Project: $PROJECT (hardcoded in workflow)"
           echo "Case Type: $CASE_TYPE (from labels)"
-          echo "Catalog: $CATALOG_ITEM (from labels)"
+          echo "Catalog Item: $CATALOG_ITEM (from template)"
           
           
           # Build minimal payload with template values
@@ -313,7 +320,7 @@ jobs:
               '- Priority: ' + priority + '\n' +
               '- Environment: ' + environment + (envRaw ? ' (selected: ' + envRaw + ')' : '') + '\n' +
               '- Type: ' + caseType + '\n' +
-              '- Catalog: ' + catalogItem + '\n\n' +
+              '- Catalog Item: ' + catalogItem + '\n\n' +
               '---\n' +
               '- Product: ' + product + '\n' +
               '- Project: ' + project + '\n\n' +
@@ -333,11 +340,13 @@ jobs:
           script: |
             const priority = '${{ steps.extract_fields.outputs.priority }}';
             const environment = '${{ steps.extract_fields.outputs.environment }}';
+            const catalogItem = '${{ steps.extract_fields.outputs.catalog_item }}';
             const project = '${{ env.SERVICENOW_PROJECT }}';
             
             const commentBody = '## ❌ ServiceNow Case Creation Failed\n\n' +
               'Failed to create case in ServiceNow.\n\n' +
               '**Extracted Values:**\n' +
+              '- Catalog Item: ' + catalogItem + '\n' +
               '- Priority: ' + priority + '\n' +
               '- Environment: ' + environment + '\n\n' +
               '- Project: ' + project + '\n\n' +
