@@ -1,6 +1,6 @@
 name: Bug Report / Incident
 description: Report a bug or system incident
-labels: ["Type/Incident", "bug", "servicenow"]
+labels: ["Type/Incident", "bug"]
 body:
   
   # HIDDEN FIELDS (Template Configuration)
