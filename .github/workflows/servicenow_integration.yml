@@ -5,17 +5,15 @@ on:
     types: [opened]
 
 permissions:
- issues: write
- contents: read
+  issues: write
+  contents: read
 
-# Hardcode the project and product
 env:
   SERVICENOW_PRODUCT: "WSO2 API Manager 1.10.0 Developer Portal"
   SERVICENOW_PROJECT: "Customer Portal Customer Project1 - Subscription"
 
 jobs:
   send-to-servicenow:
-    if: contains(github.event.issue.labels.*.name, 'servicenow')
     runs-on: ubuntu-latest
     
     steps:
@@ -46,30 +44,46 @@ jobs:
             // Extract all fields
             const fields = {
               template_marker: extractField(body, 'Template Marker'),
-              catalog_item: extractField(body, 'ServiceNow Catalog Item'),
-              case_type: extractField(body, 'Case Type'),  // ⚠️ NEW: Extract from template
+              catalog_item: extractField(body, 'ServiceNow Catalog Item') || 
+                           extractField(body, 'ServiceNow Catalog'),
+              case_type: extractField(body, 'Case Type'),
               u_request_details: extractField(body, 'Request Details') || 
+                                 extractField(body, 'Request Summary') ||
                                  extractField(body, 'Issue Summary') ||
-                                 extractField(body, 'Access Details'),  // ⚠️ Handle different field names
+                                 extractField(body, 'Access Details'),
               description: extractField(body, 'Detailed Description') ||
+                          extractField(body, 'Description') ||
                           extractField(body, 'Business Justification'),
               priority: extractField(body, 'Priority') || 
-                       extractField(body, 'Severity'),  // ⚠️ Handle different names
+                       extractField(body, 'Severity'),
               u_project_environment: extractField(body, 'Environment Details') ||
+                                    extractField(body, 'Environment(s)') ||
                                     extractField(body, 'Affected Environments')
             };
             
             console.log('📦 Extracted fields:', JSON.stringify(fields, null, 2));
             
             // ============================================================
-            // CASE TYPE DETERMINATION (Multi-Level Fallback)
+            // VALIDATION
             // ============================================================
-            let caseType = fields.case_type;  // ⚠️ Priority 1: From template
+            if (!fields.catalog_item) {
+              core.setFailed('❌ Catalog item not found in template');
+              return;
+            }
+            
+            if (!fields.u_request_details) {
+              core.setFailed('❌ Request details not found in template');
+              return;
+            }
+            
+            // ============================================================
+            // CASE TYPE DETERMINATION
+            // ============================================================
+            let caseType = fields.case_type;
             
             if (!caseType) {
-              // ⚠️ Priority 2: From labels (fallback for old templates)
               const labels = context.payload.issue.labels.map(l => l.name);
-              console.log(' Labels:', labels);
+              console.log('🏷️ Labels:', labels);
               
               if (labels.some(l => l.includes('Type/Incident') || l.includes('bug'))) {
                 caseType = 'Incident';
@@ -78,7 +92,7 @@ jobs:
               } else if (labels.some(l => l.includes('Type/ServiceRequest'))) {
                 caseType = 'Service Request';
               } else {
-                caseType = 'Service Request';  // Default
+                caseType = 'Service Request';
               }
               
               console.log('⚠️  Case type not in template, derived from labels:', caseType);
@@ -89,7 +103,7 @@ jobs:
             fields.case_type = caseType;
             
             // ============================================================
-            // PARSE ENVIRONMENTS (Dropdown Multiple)
+            // PARSE ENVIRONMENTS
             // ============================================================
             if (fields.u_project_environment) {
               fields.u_project_environment = fields.u_project_environment
@@ -104,7 +118,7 @@ jobs:
             }
             
             // ============================================================
-            // MAP PRIORITY TO SERVICENOW FORMAT
+            // MAP PRIORITY
             // ============================================================
             const priorityMap = {
               'Critical': '1 - Critical',
@@ -122,20 +136,7 @@ jobs:
               console.log('✓ Mapped priority:', fields.priority);
             } else {
               fields.priority = '3 - Moderate';
-              console.log(' Using default priority:', fields.priority);
-            }
-            
-            // ============================================================
-            // VALIDATION
-            // ============================================================
-            if (!fields.catalog_item) {
-              core.setFailed('❌ Catalog item not found in template');
-              return;
-            }
-            
-            if (!fields.u_request_details) {
-              core.setFailed('❌ Request details not found in template');
-              return;
+              console.log('ℹ️ Using default priority:', fields.priority);
             }
             
             // Set all outputs
@@ -155,15 +156,13 @@ jobs:
         run: |
           echo "Building ServiceNow payload..."
           
-          # Extract parsed values
           CATALOG_ITEM="${{ steps.parse.outputs.catalog_item }}"
-          CASE_TYPE="${{ steps.parse.outputs.case_type }}"  # Now from template
+          CASE_TYPE="${{ steps.parse.outputs.case_type }}"
           U_REQUEST_DETAILS="${{ steps.parse.outputs.u_request_details }}"
           DESCRIPTION="${{ steps.parse.outputs.description }}"
           PRIORITY="${{ steps.parse.outputs.priority }}"
           ENVIRONMENTS="${{ steps.parse.outputs.u_project_environment }}"
           
-          # GitHub metadata
           ISSUE_NUMBER="${{ github.event.issue.number }}"
           ISSUE_TITLE='${{ github.event.issue.title }}'
           ISSUE_URL="${{ github.event.issue.html_url }}"
@@ -171,19 +170,17 @@ jobs:
           REPO_FULL_NAME="${{ github.repository }}"
           LABELS="${{ join(github.event.issue.labels.*.name, ', ') }}"
           
-          # Hardcoded (hidden from customer)
           PRODUCT="${{ env.SERVICENOW_PRODUCT }}"
           PROJECT="${{ env.SERVICENOW_PROJECT }}"
           
           echo "Payload Summary:"
           echo "  ├─ Catalog Item: $CATALOG_ITEM"
-          echo "  ├─ Case Type: $CASE_TYPE"  # Show case type
+          echo "  ├─ Case Type: $CASE_TYPE"
           echo "  ├─ Priority: $PRIORITY"
           echo "  ├─ Environments: $ENVIRONMENTS"
           echo "  ├─ Project: $PROJECT (auto-mapped)"
           echo "  └─ Product: $PRODUCT (auto-mapped)"
           
-          # Build payload
           PAYLOAD=$(jq -n \
             --arg catalog_item "$CATALOG_ITEM" \
             --arg case_type "$CASE_TYPE" \
@@ -272,7 +269,7 @@ jobs:
             } catch (e) {}
             
             const caseNumber = response.case_number || 'Unknown';
-            const caseType = '${{ steps.parse.outputs.case_type }}';  // Show case type
+            const caseType = '${{ steps.parse.outputs.case_type }}';
             const catalogItem = '${{ steps.parse.outputs.catalog_item }}';
             const priority = '${{ steps.parse.outputs.priority }}';
             const environments = '${{ steps.parse.outputs.u_project_environment }}';
@@ -282,10 +279,10 @@ jobs:
             **Case Number:** \`${caseNumber}\`
 
             ### Request Details
-              - **Type:** ${caseType}
-              - **Catalog:** ${catalogItem}
-              - **Priority:** ${priority}
-              - **Environments:** ${environments}
+            - **Type:** ${caseType}
+            - **Catalog:** ${catalogItem}
+            - **Priority:** ${priority}
+            - **Environments:** ${environments}
 
             ### Auto-Mapped Fields
             - **Project:** ${{ env.SERVICENOW_PROJECT }}
@@ -295,35 +292,35 @@ jobs:
             *Your ${caseType.toLowerCase()} has been submitted and will be processed by the support team.*
 
             *Automated via GitHub Actions*`;
-                        
-                        await github.rest.issues.createComment({
-                          owner: context.repo.owner,
-                          repo: context.repo.repo,
-                          issue_number: context.issue.number,
-                          body: commentBody
-                        });
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: commentBody
+            });
 
-                      - name: Comment on Issue - Failure
-                        if: failure()
-                        uses: actions/github-script@v7
-                        with:
-                          script: |
-                            const commentBody = `## ❌ ServiceNow Case Creation Failed
+      - name: Comment on Issue - Failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commentBody = `## ❌ ServiceNow Case Creation Failed
 
-                Failed to create case in ServiceNow.
+            Failed to create case in ServiceNow.
 
-              **Debug Information:**
-              - **Catalog:** ${{ steps.parse.outputs.catalog_item }}
-              - **Case Type:** ${{ steps.parse.outputs.case_type }}
+            **Debug Information:**
+            - **Catalog:** ${{ steps.parse.outputs.catalog_item }}
+            - **Case Type:** ${{ steps.parse.outputs.case_type }}
 
-              Check the [workflow logs](${context.payload.repository.html_url}/actions/runs/${context.runId}) for detailed error messages.
+            Check the [workflow logs](${context.payload.repository.html_url}/actions/runs/${context.runId}) for detailed error messages.
 
             ---
             *Contact support if the issue persists. Reference issue #${context.issue.number}*`;
-                        
-                        await github.rest.issues.createComment({
-                          owner: context.repo.owner,
-                          repo: context.repo.repo,
-                          issue_number: context.issue.number,
-                          body: commentBody
-                        });
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: commentBody
+            });
