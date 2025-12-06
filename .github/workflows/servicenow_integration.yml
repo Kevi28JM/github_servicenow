@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Parse Issue Form Fields
+      - name: Parse Issue Form Fields (Dynamic)
         id: parse
         uses: actions/github-script@v7
         with:
@@ -25,96 +25,132 @@ jobs:
             const issue = context.payload.issue;
             const body = issue.body || '';
             
-            console.log('Parsing issue form data...');
+            console.log('='.repeat(80));
+            console.log('DYNAMIC ISSUE PARSER - Works with ANY Template');
+            console.log('='.repeat(80));
             console.log('Issue body length:', body.length);
             
-            // Parse GitHub issue form format
-            function extractField(body, fieldLabel) {
-              const regex = new RegExp(`###\\s*${fieldLabel}\\s*\\n\\n([\\s\\S]*?)(?=\\n\\n###|$)`, 'i');
-              const match = body.match(regex);
-              const value = match ? match[1].trim() : '';
+            // ============================================================
+            // EXTRACT ALL FIELDS DYNAMICALLY
+            // ============================================================
+            function extractAllFields(body) {
+              const fields = {};
               
-              if (value === '_No response_' || value === 'No response' || value === '') {
-                return '';
+              // Match all "### FieldName\n\nValue" patterns
+              const fieldRegex = /###\s*([^\n]+)\s*\n\n([^\n]*(?:\n(?!###)[^\n]*)*)/g;
+              let match;
+              
+              while ((match = fieldRegex.exec(body)) !== null) {
+                const fieldLabel = match[1].trim();
+                let value = match[2].trim();
+                
+                // Skip empty or "No response" values
+                if (value === '_No response_' || value === 'No response' || value === '') {
+                  continue;
+                }
+                
+                // Convert field label to a key (remove emojis, special chars, convert to snake_case)
+                const key = fieldLabel
+                  .replace(/[^\w\s-]/g, '')  // Remove emojis and special chars
+                  .trim()
+                  .toLowerCase()
+                  .replace(/\s+/g, '_');     // Replace spaces with underscores
+                
+                fields[key] = value;
+                console.log(`✓ Extracted: "${fieldLabel}" → ${key} = "${value.substring(0, 50)}${value.length > 50 ? '...' : ''}"`);
               }
               
-              return value;
+              return fields;
             }
             
-            // Extract all fields
-            const fields = {
-              template_marker: extractField(body, 'Template Marker'),
-              catalog_item: extractField(body, 'ServiceNow Catalog Item') || 
-                           extractField(body, 'ServiceNow Catalog'),
-              case_type: extractField(body, 'Case Type'),
-              u_request_details: extractField(body, 'Request Details') || 
-                                 extractField(body, 'Request Summary') ||
-                                 extractField(body, 'Issue Summary') ||
-                                 extractField(body, 'Access Details'),
-              description: extractField(body, 'Detailed Description') ||
-                          extractField(body, 'Description') ||
-                          extractField(body, 'Business Justification'),
-              priority: extractField(body, 'Priority') || 
-                       extractField(body, 'Severity'),
-              u_project_environment: extractField(body, 'Environment Details') ||
-                                    extractField(body, 'Environment(s)') ||
-                                    extractField(body, 'Affected Environments')
-            };
+            const allFields = extractAllFields(body);
             
-            console.log('📦 Extracted fields:', JSON.stringify(fields, null, 2));
+            console.log('\n' + '-'.repeat(80));
+            console.log('EXTRACTED FIELDS:', Object.keys(allFields).length);
+            console.log('-'.repeat(80));
+            console.log(JSON.stringify(allFields, null, 2));
+            
+            // ============================================================
+            // EXTRACT CONTROL FIELDS (with fallbacks)
+            // ============================================================
+            const catalogItem = 
+              allFields.servicenow_catalog_item || 
+              allFields.servicenow_catalog ||
+              allFields.catalog_item ||
+              '';
+            
+            const caseType = 
+              allFields.case_type ||
+              '';
+            
+            const priority = 
+              allFields.priority || 
+              allFields.severity ||
+              '';
+            
+            // Environment field - try multiple possible names
+            const environment = 
+              allFields.environment_details ||
+              allFields.environments ||
+              allFields.environment ||
+              allFields.affected_environments ||
+              allFields.u_project_environment ||
+              '';
+            
+            console.log('\n' + '-'.repeat(80));
+            console.log('CONTROL FIELDS:');
+            console.log('-'.repeat(80));
+            console.log('Catalog:', catalogItem);
+            console.log('Case Type:', caseType);
+            console.log('Priority:', priority);
+            console.log('Environment:', environment);
             
             // ============================================================
             // VALIDATION
             // ============================================================
-            if (!fields.catalog_item) {
-              core.setFailed('❌ Catalog item not found in template');
-              return;
-            }
-            
-            if (!fields.u_request_details) {
-              core.setFailed('❌ Request details not found in template');
+            if (!catalogItem) {
+              core.setFailed('❌ Catalog item not found. Make sure your template has a "ServiceNow Catalog" field.');
               return;
             }
             
             // ============================================================
-            // CASE TYPE DETERMINATION
+            // CASE TYPE FALLBACK
             // ============================================================
-            let caseType = fields.case_type;
+            let finalCaseType = caseType;
             
-            if (!caseType) {
+            if (!finalCaseType) {
               const labels = context.payload.issue.labels.map(l => l.name);
-              console.log('🏷️ Labels:', labels);
+              console.log('\n🏷️ Labels:', labels);
               
               if (labels.some(l => l.includes('Type/Incident') || l.includes('bug'))) {
-                caseType = 'Incident';
+                finalCaseType = 'Incident';
               } else if (labels.some(l => l.includes('Type/Query'))) {
-                caseType = 'Query';
+                finalCaseType = 'Query';
               } else if (labels.some(l => l.includes('Type/ServiceRequest'))) {
-                caseType = 'Service Request';
+                finalCaseType = 'Service Request';
               } else {
-                caseType = 'Service Request';
+                finalCaseType = 'Service Request';
               }
               
-              console.log('⚠️  Case type not in template, derived from labels:', caseType);
-            } else {
-              console.log('✓ Case type from template:', caseType);
+              console.log('⚠️ Case type not in template, derived from labels:', finalCaseType);
             }
-            
-            fields.case_type = caseType;
             
             // ============================================================
             // PARSE ENVIRONMENTS
             // ============================================================
-            if (fields.u_project_environment) {
-              fields.u_project_environment = fields.u_project_environment
+            let finalEnvironment = environment;
+            
+            if (finalEnvironment) {
+              finalEnvironment = finalEnvironment
                 .split(',')
                 .map(env => env.trim())
                 .filter(env => env.length > 0)
                 .join(', ');
               
-              console.log('✓ Parsed environments:', fields.u_project_environment);
+              console.log('✓ Parsed environments:', finalEnvironment);
             } else {
-              fields.u_project_environment = 'Development';
+              finalEnvironment = 'Development';
+              console.log('ℹ️ No environment specified, using default: Development');
             }
             
             // ============================================================
@@ -131,38 +167,52 @@ jobs:
               'Low (Cosmetic)': '4 - Low'
             };
             
-            if (fields.priority && priorityMap[fields.priority]) {
-              fields.priority = priorityMap[fields.priority];
-              console.log('✓ Mapped priority:', fields.priority);
-            } else {
-              fields.priority = '3 - Moderate';
-              console.log('ℹ️ Using default priority:', fields.priority);
+            let finalPriority = priority;
+            
+            if (finalPriority && priorityMap[finalPriority]) {
+              finalPriority = priorityMap[finalPriority];
+              console.log('✓ Mapped priority:', finalPriority);
+            } else if (!finalPriority) {
+              finalPriority = '3 - Moderate';
+              console.log('ℹ️ No priority specified, using default: 3 - Moderate');
             }
             
-            // Set all outputs
-            for (const [key, value] of Object.entries(fields)) {
-              core.setOutput(key, value || '');
-            }
+            // ============================================================
+            // BUILD OUTPUT - Include ALL fields
+            // ============================================================
+            const output = {
+              ...allFields,  // All extracted fields
+              catalog_item: catalogItem,
+              case_type: finalCaseType,
+              priority: finalPriority,
+              u_project_environment: finalEnvironment
+            };
             
-            console.log('✅ Parsing complete');
-            console.log('Summary:');
-            console.log('   Template:', fields.template_marker);
-            console.log('   Catalog:', fields.catalog_item);
-            console.log('   Case Type:', fields.case_type);
-            console.log('   Priority:', fields.priority);
+            // Set outputs
+            core.setOutput('all_fields', JSON.stringify(output));
+            core.setOutput('catalog_item', catalogItem);
+            core.setOutput('case_type', finalCaseType);
+            core.setOutput('priority', finalPriority);
+            core.setOutput('u_project_environment', finalEnvironment);
+            
+            console.log('\n' + '='.repeat(80));
+            console.log('✅ PARSING COMPLETE');
+            console.log('='.repeat(80));
+            console.log('Total fields extracted:', Object.keys(output).length);
+            console.log('Catalog:', catalogItem);
+            console.log('Case Type:', finalCaseType);
+            console.log('Priority:', finalPriority);
+            console.log('='.repeat(80));
 
-      - name: Build ServiceNow Payload
+      - name: Build ServiceNow Payload (Dynamic)
         id: build_payload
         run: |
           echo "Building ServiceNow payload..."
           
-          CATALOG_ITEM="${{ steps.parse.outputs.catalog_item }}"
-          CASE_TYPE="${{ steps.parse.outputs.case_type }}"
-          U_REQUEST_DETAILS="${{ steps.parse.outputs.u_request_details }}"
-          DESCRIPTION="${{ steps.parse.outputs.description }}"
-          PRIORITY="${{ steps.parse.outputs.priority }}"
-          ENVIRONMENTS="${{ steps.parse.outputs.u_project_environment }}"
+          # Get all extracted fields as JSON
+          ALL_FIELDS='${{ steps.parse.outputs.all_fields }}'
           
+          # Get GitHub metadata
           ISSUE_NUMBER="${{ github.event.issue.number }}"
           ISSUE_TITLE='${{ github.event.issue.title }}'
           ISSUE_URL="${{ github.event.issue.html_url }}"
@@ -170,24 +220,20 @@ jobs:
           REPO_FULL_NAME="${{ github.repository }}"
           LABELS="${{ join(github.event.issue.labels.*.name, ', ') }}"
           
+          # Get environment variables
           PRODUCT="${{ env.SERVICENOW_PRODUCT }}"
           PROJECT="${{ env.SERVICENOW_PROJECT }}"
           
           echo "Payload Summary:"
-          echo "  ├─ Catalog Item: $CATALOG_ITEM"
-          echo "  ├─ Case Type: $CASE_TYPE"
-          echo "  ├─ Priority: $PRIORITY"
-          echo "  ├─ Environments: $ENVIRONMENTS"
+          echo "  ├─ Catalog Item: ${{ steps.parse.outputs.catalog_item }}"
+          echo "  ├─ Case Type: ${{ steps.parse.outputs.case_type }}"
+          echo "  ├─ Priority: ${{ steps.parse.outputs.priority }}"
+          echo "  ├─ Environment: ${{ steps.parse.outputs.u_project_environment }}"
           echo "  ├─ Project: $PROJECT (auto-mapped)"
           echo "  └─ Product: $PRODUCT (auto-mapped)"
           
-          PAYLOAD=$(jq -n \
-            --arg catalog_item "$CATALOG_ITEM" \
-            --arg case_type "$CASE_TYPE" \
-            --arg u_request_details "$U_REQUEST_DETAILS" \
-            --arg description "$DESCRIPTION" \
-            --arg priority "$PRIORITY" \
-            --arg environments "$ENVIRONMENTS" \
+          # Build payload by merging all fields with metadata
+          PAYLOAD=$(echo "$ALL_FIELDS" | jq \
             --arg project "$PROJECT" \
             --arg product "$PRODUCT" \
             --arg title "$ISSUE_TITLE" \
@@ -196,13 +242,7 @@ jobs:
             --arg github_user "$GITHUB_USER" \
             --arg repository_full_name "$REPO_FULL_NAME" \
             --arg labels "$LABELS" \
-            '{
-              catalog_item: $catalog_item,
-              case_type: $case_type,
-              u_request_details: $u_request_details,
-              description: $description,
-              priority: $priority,
-              u_project_environment: $environments,
+            '. + {
               project: $project,
               product: $product,
               title: $title,
