@@ -161,7 +161,7 @@ body:
   - type: dropdown
     id: u_maintenance_window
     attributes:
-      label: "u_maintenance_window | Is a maintenance window required or not
+      label: "u_maintenance_window | Is a maintenance window required or not"
       description: Select whether a maintenance window is required for this change.
       options:
         - "Yes"
