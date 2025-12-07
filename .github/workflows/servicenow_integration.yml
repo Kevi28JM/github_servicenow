@@ -210,6 +210,29 @@ jobs:
           # Get the full issue body (already formatted with labels)
           ISSUE_BODY='${{ github.event.issue.body }}'
           
+          # Create a beautifully formatted HTML description
+          FORMATTED_DESCRIPTION=$(cat <<'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+              .header { background-color: #0366d6; color: white; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
+              .field-container { margin-bottom: 20px; padding: 15px; background-color: #f6f8fa; border-left: 4px solid #0366d6; border-radius: 3px; }
+              .field-label { font-weight: bold; color: #0366d6; font-size: 14px; margin-bottom: 5px; text-transform: uppercase; }
+              .field-value { color: #24292e; font-size: 14px; padding: 8px; background-color: white; border-radius: 3px; white-space: pre-wrap; word-wrap: break-word; }
+              .footer { margin-top: 30px; padding: 10px; background-color: #f1f1f1; border-top: 2px solid #0366d6; font-size: 12px; color: #666; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h2>GitHub Issue: ${{ github.event.issue.title }}</h2>
+              <p><strong>Issue #${{ github.event.issue.number }}</strong> | Created by: ${{ github.event.issue.user.login }}</p>
+              <p><a href="${{ github.event.issue.html_url }}" style="color: white;">View on GitHub</a></p>
+            </div>
+          EOF
+          )
+
           # Merge all fields with GitHub metadata
           PAYLOAD=$(echo "$ALL_FIELDS" | jq \
             --arg project "$PROJECT" \
@@ -220,7 +243,7 @@ jobs:
             --arg github_user "$GITHUB_USER" \
             --arg repository_full_name "$REPO_FULL_NAME" \
             --arg labels "$LABELS" \
-            --arg issue_body "$ISSUE_BODY" \
+            --arg formatted_description "$FORMATTED_DESCRIPTION" \
             '. + {
               project: $project,
               product: $product,
@@ -230,7 +253,7 @@ jobs:
               github_user: $github_user,
               repository_full_name: $repository_full_name,
               labels: $labels,
-              description: $issue_body
+              description: $formatted_description
             }')
           
           echo "$PAYLOAD" > payload.json
