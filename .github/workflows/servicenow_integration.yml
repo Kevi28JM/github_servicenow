@@ -1,329 +1,378 @@
 name: ServiceNow Integration
 
+
 on:
-  issues:
-    types: [opened]
+ issues:
+   types: [opened]
+
 
 permissions:
-  issues: write
-  contents: read
+issues: write
+contents: read
 
+
+# Hardcode the project and product
 env:
-  SERVICENOW_URL: "https://wso2sndev.service-now.com/api/wso2/test_sr" 
-  SERVICENOW_PRODUCT: "WSO2 API Manager 1.10.0 Developer Portal"
-  SERVICENOW_PROJECT: "Customer Portal Customer Project1 - Subscription"
+ SERVICENOW_PRODUCT: "WSO2 API Manager 1.10.0 Developer Portal"
+ SERVICENOW_PROJECT: "Customer Portal Customer Project1 - Subscription"
+
 
 jobs:
-  send-to-servicenow:
-    runs-on: ubuntu-latest
-    
-    steps:
-      
-      # ============================================================
-      # Parse Issue Form and Build Payload
-      # ============================================================
-      - name: Parse Issue Form to JSON
-        id: parse
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const issue = context.payload.issue;
-            const body = issue.body || '';
-            
-            console.log('📋 Parsing issue form to JSON...');
-            console.log('📄 Body length:', body.length);
-            console.log('📄 RAW BODY:');
-            console.log(body);
-            console.log('='.repeat(80));
-            
-            // ============================================================
-            // FIELD EXTRACTION
-            // ============================================================
-            function extractFields(body) {
-              const fields = {};
-              
-              // Regex that captures field names with spaces and special characters
-              const regex = /###\s+([^\n]+)\s*\n+([^\n][\s\S]*?)(?=\n###|\n*$)/g;
-              
-              let match;
-              while ((match = regex.exec(body)) !== null) {
-                const fieldName = match[1].trim();
-                const value = match[2].trim();
-                
-                // Skip empty values
-                if (!value || value === '_No response_' || value === 'No response') {
-                  continue;
-                }
-                
-                // Convert field name to snake_case ID
-                const fieldId = fieldName
-                  .toLowerCase()
-                  .replace(/[^a-z0-9]+/g, '_')  // Replace non-alphanumeric with underscore
-                  .replace(/^_+|_+$/g, '');      // Remove leading/trailing underscores
-                
-                fields[fieldId] = value;
-                console.log(`✓ ${fieldName} → ${fieldId}`);
-              }
-              
-              return fields;
-            }
+ send-to-servicenow:
+   runs-on: ubuntu-latest
+   steps:
 
-            // Extract all fields
-            const allFields = extractFields(body);
-            
-            console.log(`\n📦 Extracted ${Object.keys(allFields).length} fields`);
-            
-            // ============================================================
-            // CONTROL FIELD EXTRACTION
-            // ============================================================
-            const catalogItem = 
-              allFields.servicenow_catalog_item || 
-              allFields.catalog_item ||
-              '';
-            
-            const caseType = 
-              allFields.case_type || 
-              '';
-              
-            const priority = allFields.priority || '';
-            
-            const shortDescription = 
-              allFields.short_description || 
-              allFields.title || 
-              '';
-            
-            const description = allFields.description || '';
-            
-            const environment = 
-              allFields.environment_details ||
-              allFields.u_project_environment ||
-              allFields.environment ||
-              '';
-            
-            // ============================================================
-            // VALIDATION
-            // ============================================================
-            if (!catalogItem) {
-              core.setFailed('❌ Catalog item not found. Make sure your template has a "servicenow_catalog_item" field.');
-              return;
-            }
-            
-            // ============================================================
-            // CASE TYPE FALLBACK
-            // ============================================================
-            let finalCaseType = caseType;
-            
-            if (!finalCaseType) {
-              const labels = context.payload.issue.labels.map(l => l.name);
-              console.log('\n🏷️ Labels:', labels);
-              
-              if (labels.some(l => l.includes('Type/Incident') || l.includes('bug'))) {
-                finalCaseType = 'Incident';
-              } else if (labels.some(l => l.includes('Type/Query'))) {
-                finalCaseType = 'Query';
-              } else if (labels.some(l => l.includes('Type/ServiceRequest'))) {
-                finalCaseType = 'Service Request';
-              } else {
-                finalCaseType = 'Service Request';
-              }
-              
-              console.log('⚠️ Case type not in template, derived from labels:', finalCaseType);
-            } else {
-              console.log('✓ Case type from template:', finalCaseType);
-            }
-            
-            // ============================================================
-            // PARSE ENVIRONMENTS
-            // ============================================================
-            let finalEnvironment = environment;
-            
-            if (finalEnvironment) {
-              finalEnvironment = finalEnvironment
-                .split(',')
-                .map(env => env.trim())
-                .filter(env => env.length > 0)
-                .join(', ');
-              
-              console.log('✓ Parsed environments:', finalEnvironment);
-            } else {
-              finalEnvironment = 'Development';
-              console.log('ℹ️ No environment specified, using default: Development');
-            }
-            
-            // ============================================================
-            // MAP PRIORITY
-            // ============================================================
-            const priorityMap = {
-              'Critical': '1 - Critical',
-              'Critical (System Down)': '1 - Critical',
-              'High': '2 - High',
-              'High (Major Impact)': '2 - High',
-              'Moderate': '3 - Moderate',
-              'Moderate (Minor Impact)': '3 - Moderate',
-              'Low': '4 - Low',
-              'Low (Cosmetic)': '4 - Low'
-            };
-            
-            let finalPriority = priority;
-            
-            if (finalPriority && priorityMap[finalPriority]) {
-              finalPriority = priorityMap[finalPriority];
-              console.log('✓ Mapped priority:', finalPriority);
-            } else if (!finalPriority) {
-              finalPriority = '3 - Moderate';
-              console.log('ℹ️ No priority specified, using default: 3 - Moderate');
-            }
-            
-            // ============================================================
-            // BUILD COMPLETE JSON PAYLOAD
-            // ============================================================
-            const payload = {
-              ...allFields,
-              
-              // Add/override processed fields
-              catalog_item: catalogItem,
-              case_type: finalCaseType,
-              priority: finalPriority,
-              u_project_environment: finalEnvironment,
-              
-              // Required ServiceNow fields
-              u_request_details: shortDescription || description || issue.title,
-              short_description: shortDescription || issue.title,
-              description: description,
-              
-              // Add metadata fields
-              title: issue.title,
-              issue_number: issue.number.toString(),
-              issue_url: issue.html_url,
-              github_user: issue.user.login,
-              repository_full_name: context.repo.owner + '/' + context.repo.repo,
-              labels: context.payload.issue.labels.map(l => l.name).join(', '),
-              project: '${{ env.SERVICENOW_PROJECT }}',
-              product: '${{ env.SERVICENOW_PRODUCT }}'
-            };
-            
-            // Output as single JSON string
-            const jsonPayload = JSON.stringify(payload);
-            core.setOutput('payload', jsonPayload);
-            
-            // Keep individual outputs for comment step
-            core.setOutput('catalog_item', catalogItem);
-            core.setOutput('case_type', finalCaseType);
-            core.setOutput('priority', finalPriority);
-            core.setOutput('u_project_environment', finalEnvironment);
-            
-            console.log('\n✅ Complete');
-            console.log('Fields:', Object.keys(payload).length);
 
-      # ============================================================
-      # Send to ServiceNow
-      # ============================================================
-      - name: Send to ServiceNow
-        id: send_servicenow
-        run: |
-          echo "📤 Sending to ServiceNow..."
-          
-          # Payload is already complete from parse step
-          PAYLOAD='${{ steps.parse.outputs.payload }}'
-          
-          # Show preview
-          echo "📄 Payload preview:"
-          echo "$PAYLOAD" | jq '.' || echo "$PAYLOAD"
-          
-          # Send request
-          HTTP_CODE=$(curl -X POST \
-            -H "Content-Type: application/json" \
-            -H "User-Agent: GitHub-Actions-WSO2/1.0" \
-            -d "$PAYLOAD" \
-            -w "%{http_code}" \
-            -o response.json \
-            -s \
-            "${{ env.SERVICENOW_URL }}")
-
-          echo ""
-          echo "📥 HTTP Status: $HTTP_CODE"
-          echo "📥 Response:"
-          cat response.json | jq '.' || cat response.json
-          
-          if [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "200" ]; then
-            CASE_NUMBER=$(cat response.json | jq -r '.result.case_number // empty')
-            echo "case_number=$CASE_NUMBER" >> $GITHUB_OUTPUT
-            echo "✅ Success: $CASE_NUMBER"
-            exit 0
+     - name: Extract Template Fields
+       id: extract_fields
+       run: |
+        # Get the issue body
+        ISSUE_BODY='${{ github.event.issue.body }}'
+       
+        echo "Extracting template fields"
+       
+        # Function to extract field value from github issue form
+        extract_field() {
+          field_name="$1"
+          # github forms use ### FieldName format
+          value=$(echo "$ISSUE_BODY" | grep -A 2 "### $field_name" | tail -n 1 | xargs)
+         
+          # Handle "No response" or empty
+          if [ -z "$value" ] || [ "$value" = "_No response_" ] || [ "$value" = "No response" ]; then
+            echo ""
           else
-            echo "❌ Failed (HTTP $HTTP_CODE)"
-            exit 1
+            echo "$value"
           fi
+        }
 
-      # ============================================================
-      # Comment on success
-      # ============================================================
-      - name: Comment on Issue - Success
-        if: success()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            let response = {};
-            
-            try {
-              response = JSON.parse(fs.readFileSync('response.json', 'utf8'));
-              if (response.result) response = response.result;
-            } catch (e) {}
-            
-            const caseNumber = response.case_number || 'Unknown';
-            const caseType = '${{ steps.parse.outputs.case_type }}';
-            const catalogItem = '${{ steps.parse.outputs.catalog_item }}';
-            const priority = '${{ steps.parse.outputs.priority }}';
-            const environments = '${{ steps.parse.outputs.u_project_environment }}';
-            
-            const commentBody = `## ✅ ServiceNow Case Created Successfully
 
-            **Case Number:** \`${caseNumber}\`
+        # ============================================================
+        # EXTRACT CATALOG ITEM FROM TEMPLATE (NEW!)
+        # ============================================================
+        CATALOG_ITEM=$(extract_field "ServiceNow Catalog Item")
+        echo "Catalog Item from template: '$CATALOG_ITEM'"
+       
+        # Fallback to default if not found
+        if [ -z "$CATALOG_ITEM" ]; then
+          CATALOG_ITEM="General Requests"
+          echo "No catalog item found, using default: $CATALOG_ITEM"
+        fi
+       
+        echo "catalog_item=$CATALOG_ITEM" >> $GITHUB_OUTPUT
 
-            ### Request Details
-            - **Type:** ${caseType}
-            - **Catalog:** ${catalogItem}
-            - **Priority:** ${priority}
-            - **Environments:** ${environments}
 
-            ### Auto-Mapped Fields
-            - **Project:** ${{ env.SERVICENOW_PROJECT }}
-            - **Product:** ${{ env.SERVICENOW_PRODUCT }}
 
-            ---
-            *Your ${caseType.toLowerCase()} has been submitted and will be processed by the support team.*
 
-            *Automated via GitHub Actions*`;
-                        
-                        await github.rest.issues.createComment({
-                          owner: context.repo.owner,
-                          repo: context.repo.repo,
-                          issue_number: context.issue.number,
-                          body: commentBody
-                        });
+        # Extract Priority from template
+        PRIORITY_RAW=$(extract_field "Priority")
+        echo "Raw Priority: '$PRIORITY_RAW'"
+       
+        # Map to ServiceNow format
+        case "$PRIORITY_RAW" in
+          "Critical")
+            PRIORITY="1 - Critical"
+            ;;
+          "High")
+            PRIORITY="2 - High"
+            ;;
+          "Moderate")
+            PRIORITY="3 - Moderate"
+            ;;
+          "Low")
+            PRIORITY="4 - Low"
+            ;;
+          *)
+            PRIORITY="3 - Moderate"  # Default
+            ;;
+        esac
+       
+        echo "Mapped Priority: $PRIORITY"
+        echo "priority=$PRIORITY" >> $GITHUB_OUTPUT
+       
+        # Extract Environment Details from template
+        ENV_RAW=$(extract_field "Environment Details")
+        echo "Raw Environment: '$ENV_RAW'"
+       
+        # Parse all selected environments
+        ENVIRONMENTS=""
+        PRIMARY_ENVIRONMENT="Development"  # Default
+       
+        # Check each environment and build comma-separated list
+        if echo "$ENV_RAW" | grep -qi "Production"; then
+          ENVIRONMENTS="${ENVIRONMENTS}Production, "
+          PRIMARY_ENVIRONMENT="Production"  # Highest priority
+        fi
+        if echo "$ENV_RAW" | grep -qi "Staging"; then
+          ENVIRONMENTS="${ENVIRONMENTS}Staging, "
+          if [ "$PRIMARY_ENVIRONMENT" = "Development" ]; then
+            PRIMARY_ENVIRONMENT="Staging"  # Second priority
+          fi
+        fi
+        if echo "$ENV_RAW" | grep -qi "Development"; then
+          ENVIRONMENTS="${ENVIRONMENTS}Development, "
+        fi
+       
+        # Clean up trailing comma and space
+        ENVIRONMENTS=$(echo "$ENVIRONMENTS" | sed 's/, $//')
+       
+        # If no environments detected, use default
+        if [ -z "$ENVIRONMENTS" ]; then
+          ENVIRONMENTS="Development"
+          PRIMARY_ENVIRONMENT="Development"
+        fi
+       
+        echo "All Environments: $ENVIRONMENTS"
+        echo "Primary Environment: $PRIMARY_ENVIRONMENT (highest priority)"
+        echo "environment=$PRIMARY_ENVIRONMENT" >> $GITHUB_OUTPUT
+        echo "environments_all=$ENVIRONMENTS" >> $GITHUB_OUTPUT
+        echo "environment_raw=$ENV_RAW" >> $GITHUB_OUTPUT
+       
+        # Determine case type from labels (fallback if no template field)
+        LABELS_JSON='${{ toJSON(github.event.issue.labels) }}'
+        LABELS_STRING=$(echo "$LABELS_JSON" | jq -r '.[].name' | tr '\n' ',' | sed 's/,$//')
+       
+        CASE_TYPE="Service Request"  # Default
+        if echo "$LABELS_STRING" | grep -qi "bug\|incident\|defect"; then
+          CASE_TYPE="Incident"
+        elif echo "$LABELS_STRING" | grep -qi "feature\|enhancement\|request"; then
+          CASE_TYPE="Service Request"
+        fi
+       
+        echo "Case Type: $CASE_TYPE"
+        echo "case_type=$CASE_TYPE" >> $GITHUB_OUTPUT
+        echo "labels=$LABELS_STRING" >> $GITHUB_OUTPUT
+       
+        echo ""
+        echo "✅ Template fields extracted successfully"
+        echo "   📋 Catalog Item: $CATALOG_ITEM (from template)"
+        echo "   ⚡ Priority: $PRIORITY"
+        echo "   🌍 Environments: $ENVIRONMENTS"
+        echo "   📦 Case Type: $CASE_TYPE"
 
-                  - name: Comment on Issue - Failure
-                    if: failure()
-                    uses: actions/github-script@v7
-                    with:
-                      script: |
-                        const commentBody = `## ❌ ServiceNow Case Creation Failed
 
-            Failed to create case in ServiceNow.
+     - name: Build Clean Payload
+       id: build_payload
+       run: |
+        ISSUE_NUMBER="${{ github.event.issue.number }}"
+        ISSUE_TITLE='${{ github.event.issue.title }}'
+        ISSUE_BODY='${{ github.event.issue.body }}'
+        ISSUE_URL="${{ github.event.issue.html_url }}"
+        GITHUB_USER="${{ github.event.issue.user.login }}"
+        REPO_NAME="${{ github.event.repository.name }}"
+        REPO_FULL_NAME="${{ github.event.repository.full_name }}"
+       
+        # Use extracted values
+        PRIORITY="${{ steps.extract_fields.outputs.priority }}"
+        ENVIRONMENT="${{ steps.extract_fields.outputs.environment }}"
 
-            **Debug Information:**
-            - **Catalog:** ${{ steps.parse.outputs.catalog_item }}
-            - **Case Type:** ${{ steps.parse.outputs.case_type }}
 
-            Check the [workflow logs](${context.payload.repository.html_url}/actions/runs/${context.runId}) for detailed error messages.
+         #full list of environments
+        ALL_ENVIRONMENTS="${{ steps.extract_fields.outputs.environments_all }}"
+       
 
-            ---
-            *Contact support if the issue persists. Reference issue #${context.issue.number}*`;
-                        
-                        await github.rest.issues.createComment({
-                          owner: context.repo.owner,
-                          repo: context.repo.repo,
-                          issue_number: context.issue.number,
-                          body: commentBody
-                        });
+
+        CASE_TYPE="${{ steps.extract_fields.outputs.case_type }}"
+        CATALOG_ITEM="${{ steps.extract_fields.outputs.catalog_item }}"
+        LABELS="${{ steps.extract_fields.outputs.labels }}"
+       
+        # Use hardcoded values from workflow env
+        PRODUCT="${{ env.SERVICENOW_PRODUCT }}"
+        PROJECT="${{ env.SERVICENOW_PROJECT }}"
+       
+        
+        echo "Building Clean Payload"
+        
+        echo "Priority: $PRIORITY (from template)"
+        echo "Environment: $ENVIRONMENT (from template)"
+
+
+        #Show full environment list
+        echo "All Environments: $ALL_ENVIRONMENTS"
+
+
+        echo "Product: $PRODUCT (hardcoded in workflow)"
+        echo "Project: $PROJECT (hardcoded in workflow)"
+        echo "Case Type: $CASE_TYPE (from labels)"
+        echo "Catalog Item: $CATALOG_ITEM (from template)"
+       
+       
+        # Build minimal payload with template values
+        PAYLOAD=$(jq -n \
+          --arg title "$ISSUE_TITLE" \
+          --arg description "$ISSUE_BODY" \
+          --arg issue_number "$ISSUE_NUMBER" \
+          --arg issue_url "$ISSUE_URL" \
+          --arg github_user "$GITHUB_USER" \
+          --arg repo_name "$REPO_NAME" \
+          --arg repo_full_name "$REPO_FULL_NAME" \
+          --arg labels "$LABELS" \
+          --arg environment "$ENVIRONMENT" \
+          --arg all_environments "$ALL_ENVIRONMENTS" \
+          --arg priority "$PRIORITY" \
+          --arg case_type "$CASE_TYPE" \
+          --arg catalog_item "$CATALOG_ITEM" \
+          --arg product "$PRODUCT" \
+          --arg project "$PROJECT" \
+          '{
+            title: $title,
+            description: $description,
+            issue_number: $issue_number,
+            issue_url: $issue_url,
+            github_user: $github_user,
+            repository_name: $repo_name,
+            repository_full_name: $repo_full_name,
+            labels: $labels,
+            environment: $environment,
+            all_environments: $all_environments,
+            priority: $priority,
+            case_type: $case_type,
+            catalog_item: $catalog_item,
+            product: $product,
+            project: $project
+          }')
+       
+        echo "$PAYLOAD" > payload.json
+       
+        echo ""
+        echo "Final Payload:"
+        cat payload.json | jq '.'
+        echo ""
+        echo "✅ Payload built with template-extracted values"
+
+
+     - name: Send to ServiceNow
+       id: send_servicenow
+       run: |
+        SERVICENOW_URL="https://wso2sndev.service-now.com/api/wso2/test_sr"
+       
+        echo "Sending to ServiceNow: $SERVICENOW_URL"
+        echo ""
+       
+        HTTP_CODE=$(curl -X POST \
+          -H "Content-Type: application/json" \
+          -H "User-Agent: GitHub-Actions-WSO2/1.0" \
+          -d @payload.json \
+          -w "%{http_code}" \
+          -o response.json \
+          -s \
+          "$SERVICENOW_URL")
+       
+        echo "HTTP Status: $HTTP_CODE"
+        echo ""
+        echo "ServiceNow Response:"
+        cat response.json | jq '.' || cat response.json
+        echo ""
+       
+        if [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "200" ]; then
+          echo "✅ Successfully created case in ServiceNow"
+         
+          # Extract response details
+          CASE_NUMBER=$(cat response.json | jq -r '.case_number // empty')
+          REQUEST_NUMBER=$(cat response.json | jq -r '.request_number // empty')
+          RITM_NUMBER=$(cat response.json | jq -r '.ritm_number // empty')
+         
+          echo "case_number=$CASE_NUMBER" >> $GITHUB_OUTPUT
+          echo "request_number=$REQUEST_NUMBER" >> $GITHUB_OUTPUT
+          echo "ritm_number=$RITM_NUMBER" >> $GITHUB_OUTPUT
+         
+          if [ -n "$CASE_NUMBER" ]; then
+            echo "Case: $CASE_NUMBER"
+          fi
+          if [ -n "$REQUEST_NUMBER" ]; then
+            echo "Request: $REQUEST_NUMBER"
+          fi
+          if [ -n "$RITM_NUMBER" ]; then
+            echo "RITM: $RITM_NUMBER"
+          fi
+         
+          exit 0
+        else
+          echo "❌ Failed to create case (HTTP $HTTP_CODE)"
+          exit 1
+        fi
+
+
+     - name: Comment on Issue - Success
+       if: success()
+       uses: actions/github-script@v7
+       with:
+         script: |
+          const fs = require('fs');
+          let response = {};
+          try {
+            response = JSON.parse(fs.readFileSync('response.json', 'utf8'));
+          } catch (e) {
+            console.log('Could not read response:', e);
+          }
+         
+          let records = '';
+          if (response.request_number) {
+            records += '- **Request:** ' + response.request_number + '\n';
+          }
+          if (response.ritm_number) {
+            records += '- **RITM:** ' + response.ritm_number + '\n';
+          }
+          if (response.case_number) {
+            records += '- **Case:** ' + response.case_number + '\n';
+          }
+         
+          if (!records) {
+            records = '- Check ServiceNow for created records';
+          }
+         
+          const priority = '${{ steps.extract_fields.outputs.priority }}';
+          const environment = '${{ steps.extract_fields.outputs.environment }}';
+          const envRaw = '${{ steps.extract_fields.outputs.environment_raw }}';
+          const caseType = '${{ steps.extract_fields.outputs.case_type }}';
+          const catalogItem = '${{ steps.extract_fields.outputs.catalog_item }}';
+          const product = '${{ env.SERVICENOW_PRODUCT }}';
+          const project = '${{ env.SERVICENOW_PROJECT }}';
+         
+          const commentBody = '## ✅ ServiceNow Case Created\n\n' +
+            records + '\n' +
+            '**Template Values:**\n' +
+            '- Priority: ' + priority + '\n' +
+            '- Environment: ' + environment + (envRaw ? ' (selected: ' + envRaw + ')' : '') + '\n' +
+            '- Type: ' + caseType + '\n' +
+            '- Catalog Item: ' + catalogItem + '\n\n' +
+            '---\n' +
+            '- Product: ' + product + '\n' +
+            '- Project: ' + project + '\n\n' +
+            '*Automated via GitHub Actions - Values extracted from issue template*';
+         
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body: commentBody
+          });
+
+
+     - name: Comment on Issue - Failure
+       if: failure()
+       uses: actions/github-script@v7
+       with:
+         script: |
+          const priority = '${{ steps.extract_fields.outputs.priority }}';
+          const environment = '${{ steps.extract_fields.outputs.environment }}';
+          const catalogItem = '${{ steps.extract_fields.outputs.catalog_item }}';
+          const project = '${{ env.SERVICENOW_PROJECT }}';
+         
+          const commentBody = '## ❌ ServiceNow Case Creation Failed\n\n' +
+            'Failed to create case in ServiceNow.\n\n' +
+            '**Extracted Values:**\n' +
+            '- Catalog Item: ' + catalogItem + '\n' +
+            '- Priority: ' + priority + '\n' +
+            '- Environment: ' + environment + '\n\n' +
+            '- Project: ' + project + '\n\n' +
+            '**Error Details:**\n' +
+            'Check the [workflow logs](' + context.payload.repository.html_url + '/actions/runs/' + context.runId + ') for details.\n\n' +
+            '---\n' +
+            '*Please contact support if the issue persists.*';
+         
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body: commentBody
+          });
