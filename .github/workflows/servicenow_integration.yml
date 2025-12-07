@@ -9,6 +9,7 @@ permissions:
   contents: read
 
 env:
+  SERVICENOW_URL: "https://wso2sndev.service-now.com/api/wso2/test_sr" 
   SERVICENOW_PRODUCT: "WSO2 API Manager 1.10.0 Developer Portal"
   SERVICENOW_PROJECT: "Customer Portal Customer Project1 - Subscription"
 
@@ -17,7 +18,11 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Parse Issue Form Fields (Direct ID Extraction)
+      
+      # ============================================================
+      # ⚠️ CHANGED: Simplified field extraction
+      # ============================================================
+      - name: Parse Issue Form to JSON  # ⚠️ CHANGED: New step name
         id: parse
         uses: actions/github-script@v7
         with:
@@ -25,94 +30,63 @@ jobs:
             const issue = context.payload.issue;
             const body = issue.body || '';
             
-            console.log('='.repeat(80));
-            console.log('DIRECT ID EXTRACTOR - Gets Field IDs from Template');
-            console.log('='.repeat(80));
-            console.log('Issue body length:', body.length);
+            console.log('📋 Parsing issue form to JSON...');  # ⚠️ CHANGED: Simpler title
+            console.log('📄 Body length:', body.length);  # ⚠️ CHANGED: Simpler log
+            
+            # ⚠️ REMOVED: All the "RAW ISSUE BODY" debug logging
+            # ⚠️ REMOVED: Multiple strategy regex attempts
+            # ⚠️ REMOVED: "knownFields" validation logic
             
             // ============================================================
-            // EXTRACT ALL FIELDS USING MULTIPLE STRATEGIES
+            // ⚠️ CHANGED: Single, clean extraction function
             // ============================================================
             function extractFields(body) {
               const fields = {};
               
-              // Log the raw body for debugging
-              console.log('\n🔍 RAW ISSUE BODY (first 500 chars):');
-              console.log(body.substring(0, 500));
-              console.log('...\n');
-              
-              // Strategy 1: Try to match field IDs with underscores (e.g., u_short_description)
-              // This pattern looks for ### followed by words with underscores
-              const regexWithUnderscore = /###\s+([\w_]+)\s*\n+([^\n][\s\S]*?)(?=\n+###|\n*$)/g;
+              # ⚠️ CHANGED: Simpler regex - just capture field IDs directly
+              const regex = /###\s+([\w]+)\s*\n\n([\s\S]*?)(?=\n\n###|\n*$)/g;
+              #           ↑ Simplified: Only word characters, no complex patterns
               
               let match;
-              let foundCount = 0;
-              
-              while ((match = regexWithUnderscore.exec(body)) !== null) {
-                const fieldId = match[1].trim();
+              while ((match = regex.exec(body)) !== null) {
+                const fieldId = match[1];  # ⚠️ CHANGED: Direct capture (no .trim() needed)
                 const value = match[2].trim();
                 
-                // Skip empty values
+                # ✅ UNCHANGED: Skip empty values
                 if (!value || value === '_No response_' || value === 'No response') {
-                  console.log(`⊗ Skipping empty field: ${fieldId}`);
                   continue;
                 }
                 
-                // Only keep fields that look like IDs (contain underscore or are known fields)
-                const knownFields = ['priority', 'description', 'impact'];
-                const isValidId = fieldId.includes('_') || knownFields.includes(fieldId.toLowerCase());
+                # ⚠️ REMOVED: isValidId check (accept ALL field IDs)
                 
-                if (isValidId) {
-                  fields[fieldId] = value;
-                  foundCount++;
-                  console.log(`✓ [${foundCount}] ${fieldId} = "${value.substring(0, 50)}${value.length > 50 ? '...' : ''}"`);
-                } else {
-                  console.log(`⊗ Skipped (looks like label): ${fieldId}`);
-                }
+                fields[fieldId] = value;
+                console.log(`✓ ${fieldId}`);  # ⚠️ CHANGED: Simpler log
               }
               
               return fields;
             }
-            
+
             // Extract all fields
             const allFields = extractFields(body);
             
             console.log(`\n📦 Extracted ${Object.keys(allFields).length} fields`);
-            console.log('\n' + '-'.repeat(80));
-            console.log('ALL EXTRACTED FIELDS:');
-            console.log('-'.repeat(80));
-            console.log(JSON.stringify(allFields, null, 2));
+             # ⚠️ REMOVED: Verbose JSON.stringify logging
             
             // ============================================================
-            // EXTRACT CONTROL FIELDS (with fallbacks)
+            // ⚠️ CHANGED: Simplified control field extraction
             // ============================================================
             const catalogItem = 
               allFields.servicenow_catalog_item || 
               allFields.catalog_item ||
               '';
             
-            const caseType = 
-              allFields.case_type ||
-              '';
-            
-            const priority = 
-              allFields.priority || 
-              '';
-            
-            // Environment field - try multiple possible names
+            const caseType = allFields.case_type || '';
+            const priority = allFields.priority || '';
             const environment = 
               allFields.u_project_environment ||
               allFields.environment_details ||
               allFields.environment ||
               '';
-            
-            console.log('\n' + '-'.repeat(80));
-            console.log('CONTROL FIELDS:');
-            console.log('-'.repeat(80));
-            console.log('Catalog:', catalogItem);
-            console.log('Case Type:', caseType);
-            console.log('Priority:', priority);
-            console.log('Environment:', environment);
             
             // ============================================================
             // VALIDATION
@@ -188,123 +162,91 @@ jobs:
               console.log('ℹ️ No priority specified, using default: 3 - Moderate');
             }
             
+             // ============================================================
+            // ⚠️ CHANGED: Build complete JSON payload here (not in separate step!)
             // ============================================================
-            // BUILD OUTPUT - Include ALL fields
-            // ============================================================
-            const output = {
-              ...allFields,  // All extracted fields (with correct IDs!)
+            const payload = {
+              ...allFields,  # ⚠️ NEW: Spread all extracted fields
+              
+              # ⚠️ NEW: Add/override processed fields
               catalog_item: catalogItem,
               case_type: finalCaseType,
               priority: finalPriority,
-              u_project_environment: finalEnvironment
+              u_project_environment: finalEnvironment,
+              
+              # ⚠️ NEW: Add metadata fields directly
+              title: issue.title,
+              issue_number: issue.number.toString(),
+              issue_url: issue.html_url,
+              github_user: issue.user.login,
+              repository_full_name: context.repo.owner + '/' + context.repo.repo,
+              labels: context.payload.issue.labels.map(l => l.name).join(', '),
+              project: '${{ env.SERVICENOW_PROJECT }}',
+              product: '${{ env.SERVICENOW_PRODUCT }}'
             };
             
-            // Set outputs
-            core.setOutput('all_fields', JSON.stringify(output));
+            # ⚠️ NEW: Output as single JSON string
+            const jsonPayload = JSON.stringify(payload);
+            core.setOutput('payload', jsonPayload);
+            
+            # ⚠️ NEW: Keep individual outputs for comment step
             core.setOutput('catalog_item', catalogItem);
             core.setOutput('case_type', finalCaseType);
             core.setOutput('priority', finalPriority);
             core.setOutput('u_project_environment', finalEnvironment);
             
-            console.log('\n' + '='.repeat(80));
-            console.log('✅ PARSING COMPLETE');
-            console.log('='.repeat(80));
-            console.log('Total fields extracted:', Object.keys(output).length);
-            console.log('Catalog:', catalogItem);
-            console.log('Case Type:', finalCaseType);
-            console.log('Priority:', finalPriority);
-            console.log('='.repeat(80));
+            console.log('\n✅ Complete');
+            console.log('Fields:', Object.keys(payload).length);
 
-      - name: Build ServiceNow Payload (Dynamic)
-        id: build_payload
-        run: |
-          echo "Building ServiceNow payload..."
-          
-          # Get all extracted fields as JSON
-          ALL_FIELDS='${{ steps.parse.outputs.all_fields }}'
-          
-          # Get GitHub metadata
-          ISSUE_NUMBER="${{ github.event.issue.number }}"
-          ISSUE_TITLE='${{ github.event.issue.title }}'
-          ISSUE_URL="${{ github.event.issue.html_url }}"
-          GITHUB_USER="${{ github.event.issue.user.login }}"
-          REPO_FULL_NAME="${{ github.repository }}"
-          LABELS="${{ join(github.event.issue.labels.*.name, ', ') }}"
-          
-          # Get environment variables
-          PRODUCT="${{ env.SERVICENOW_PRODUCT }}"
-          PROJECT="${{ env.SERVICENOW_PROJECT }}"
-          
-          echo "Payload Summary:"
-          echo "  ├─ Catalog Item: ${{ steps.parse.outputs.catalog_item }}"
-          echo "  ├─ Case Type: ${{ steps.parse.outputs.case_type }}"
-          echo "  ├─ Priority: ${{ steps.parse.outputs.priority }}"
-          echo "  ├─ Environment: ${{ steps.parse.outputs.u_project_environment }}"
-          echo "  ├─ Project: $PROJECT (auto-mapped)"
-          echo "  └─ Product: $PRODUCT (auto-mapped)"
-          
-          # Build payload by merging all fields with metadata
-          PAYLOAD=$(echo "$ALL_FIELDS" | jq \
-            --arg project "$PROJECT" \
-            --arg product "$PRODUCT" \
-            --arg title "$ISSUE_TITLE" \
-            --arg issue_number "$ISSUE_NUMBER" \
-            --arg issue_url "$ISSUE_URL" \
-            --arg github_user "$GITHUB_USER" \
-            --arg repository_full_name "$REPO_FULL_NAME" \
-            --arg labels "$LABELS" \
-            '. + {
-              project: $project,
-              product: $product,
-              title: $title,
-              issue_number: $issue_number,
-              issue_url: $issue_url,
-              github_user: $github_user,
-              repository_full_name: $repository_full_name,
-              labels: $labels
-            }')
-          
-          echo "$PAYLOAD" > payload.json
-          echo ""
-          echo "Final Payload:"
-          cat payload.json | jq '.'
-          echo ""
-          echo "✅ Payload built successfully"
+      # ============================================================
+      # ⚠️ REMOVED: Entire "Build ServiceNow Payload" step
+      # (Now done in parse step above)
+      # ============================================================
+
+      # ============================================================
+      # ⚠️ CHANGED: Simplified send step
+      # ============================================================
 
       - name: Send to ServiceNow
         id: send_servicenow
         run: |
-          SERVICENOW_URL="https://wso2sndev.service-now.com/api/wso2/test_sr"
+          echo "📤 Sending to ServiceNow..."
           
-          echo "Sending to ServiceNow: $SERVICENOW_URL"
-          echo ""
+          # ⚠️ NEW: Payload is already complete from parse step!
+          PAYLOAD='${{ steps.parse.outputs.payload }}'
           
+          # ⚠️ NEW: Show preview
+          echo "📄 Payload preview:"
+          echo "$PAYLOAD" | jq '.' || echo "$PAYLOAD"
+          
+          # ⚠️ CHANGED: Use env variable for URL
           HTTP_CODE=$(curl -X POST \
             -H "Content-Type: application/json" \
             -H "User-Agent: GitHub-Actions-WSO2/1.0" \
-            -d @payload.json \
+            -d "$PAYLOAD" \
             -w "%{http_code}" \
             -o response.json \
             -s \
-            "$SERVICENOW_URL")
-          
-          echo "HTTP Status: $HTTP_CODE"
-          echo ""
-          echo "ServiceNow Response:"
+            "${{ env.SERVICENOW_URL }}")
+
+            echo ""
+          echo "📥 HTTP Status: $HTTP_CODE"
+          echo "📥 Response:"
           cat response.json | jq '.' || cat response.json
-          echo ""
           
           if [ "$HTTP_CODE" = "201" ] || [ "$HTTP_CODE" = "200" ]; then
-            echo "✅ Successfully created case in ServiceNow"
-            
             CASE_NUMBER=$(cat response.json | jq -r '.result.case_number // empty')
             echo "case_number=$CASE_NUMBER" >> $GITHUB_OUTPUT
-            
+            echo "✅ Success: $CASE_NUMBER"
             exit 0
           else
-            echo "❌ Failed to create case (HTTP $HTTP_CODE)"
+            echo "❌ Failed (HTTP $HTTP_CODE)"
             exit 1
           fi
+      # ============================================================
+      # Comment on success
+      # ============================================================
+
 
       - name: Comment on Issue - Success
         if: success()
