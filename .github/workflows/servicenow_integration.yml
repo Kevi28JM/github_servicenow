@@ -80,7 +80,7 @@ jobs:
                   'maintenance window': 'u_maintenance_window',
                   'implementation plan': 'u_implementation_plan',
                   'test plan': 'u_test_plan',
-                  'monitoring checks': 'u_monitoring_checks'
+                  'monitoring checks': 'u_monitoring_checks',
 
 
                   'request details': 'u_request_details'
