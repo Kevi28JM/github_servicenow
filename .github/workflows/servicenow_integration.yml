@@ -32,6 +32,9 @@ jobs:
             
             console.log('📋 Parsing issue form to JSON...');
             console.log('📄 Body length:', body.length);
+            console.log('📄 RAW BODY:');
+            console.log(body);
+            console.log('='.repeat(80));
             
             // ============================================================
             // FIELD EXTRACTION
