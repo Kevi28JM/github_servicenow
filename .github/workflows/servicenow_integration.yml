@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Parse Issue Form Fields (Dynamic)
+      - name: Parse Issue Form Fields (Direct ID Extraction)
         id: parse
         uses: actions/github-script@v7
         with:
@@ -26,12 +26,12 @@ jobs:
             const body = issue.body || '';
             
             console.log('='.repeat(80));
-            console.log('DYNAMIC ISSUE PARSER - Works with ANY Template');
+            console.log('DIRECT ID EXTRACTOR - Gets Field IDs from Template');
             console.log('='.repeat(80));
             console.log('Issue body length:', body.length);
             
             // ============================================================
-            // EXTRACT ALL FIELDS DYNAMICALLY
+            // EXTRACT ALL FIELDS USING DIRECT ID MATCHING
             // ============================================================
             function extractFields(body) {
               const fields = {};
@@ -51,7 +51,7 @@ jobs:
                 }
                 
                 fields[fieldId] = value;
-                console.log(`✓ ${fieldId} = "${value.substring(0, 50)}..."`);
+                console.log(`✓ ${fieldId} = "${value.substring(0, 50)}${value.length > 50 ? '...' : ''}"`);
               }
               
               return fields;
