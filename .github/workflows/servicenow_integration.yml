@@ -210,28 +210,14 @@ jobs:
           # Get the full issue body (already formatted with labels)
           ISSUE_BODY='${{ github.event.issue.body }}'
           
-          # Create a beautifully formatted HTML description
-          FORMATTED_DESCRIPTION=$(cat <<'EOF'
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <style>
-              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-              .header { background-color: #0366d6; color: white; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
-              .field-container { margin-bottom: 20px; padding: 15px; background-color: #f6f8fa; border-left: 4px solid #0366d6; border-radius: 3px; }
-              .field-label { font-weight: bold; color: #0366d6; font-size: 14px; margin-bottom: 5px; text-transform: uppercase; }
-              .field-value { color: #24292e; font-size: 14px; padding: 8px; background-color: white; border-radius: 3px; white-space: pre-wrap; word-wrap: break-word; }
-              .footer { margin-top: 30px; padding: 10px; background-color: #f1f1f1; border-top: 2px solid #0366d6; font-size: 12px; color: #666; }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <h2>GitHub Issue: ${{ github.event.issue.title }}</h2>
-              <p><strong>Issue #${{ github.event.issue.number }}</strong> | Created by: ${{ github.event.issue.user.login }}</p>
-              <p><a href="${{ github.event.issue.html_url }}" style="color: white;">View on GitHub</a></p>
-            </div>
-          EOF
-          )
+          # Create a formatted HTML description
+           FORMATTED_DESCRIPTION=$(echo "$ALL_FIELDS" | jq -r '
+            (to_entries | map(
+              "<strong>" + (.key | gsub("_"; " ") | ascii_upcase) + ":</strong><br/>" +
+              (.value | gsub("\n"; "<br/>")) + "<br/><br/>"
+            ) | join("")) +
+            "<br/><strong>────────────────────────────────────────────────────────────</strong><br/>"
+          ')
 
           # Merge all fields with GitHub metadata
           PAYLOAD=$(echo "$ALL_FIELDS" | jq \
