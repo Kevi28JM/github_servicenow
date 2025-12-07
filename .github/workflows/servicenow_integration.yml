@@ -206,6 +206,9 @@ jobs:
           echo "  ├─ Fields: $(echo "$ALL_FIELDS" | jq 'length') total"
           echo "  ├─ Project: $PROJECT"
           echo "  └─ Product: $PRODUCT"
+
+          # Get the full issue body (already formatted with labels)
+          ISSUE_BODY='${{ github.event.issue.body }}'
           
           # Merge all fields with GitHub metadata
           PAYLOAD=$(echo "$ALL_FIELDS" | jq \
@@ -217,6 +220,7 @@ jobs:
             --arg github_user "$GITHUB_USER" \
             --arg repository_full_name "$REPO_FULL_NAME" \
             --arg labels "$LABELS" \
+            --arg issue_body "$ISSUE_BODY" \
             '. + {
               project: $project,
               product: $product,
@@ -225,7 +229,8 @@ jobs:
               issue_url: $issue_url,
               github_user: $github_user,
               repository_full_name: $repository_full_name,
-              labels: $labels
+              labels: $labels,
+              description: $issue_body
             }')
           
           echo "$PAYLOAD" > payload.json
