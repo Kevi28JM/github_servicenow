@@ -322,7 +322,7 @@ jobs:
             - **Product:** ${{ env.SERVICENOW_PRODUCT }}
 
             ---
-            *✨ All ${fieldCount} fields from your template were automatically extracted and submitted to ServiceNow.*
+            *All ${fieldCount} fields from your template were automatically extracted and submitted to ServiceNow.*
 
             *Automated via GitHub Actions*`;
             
