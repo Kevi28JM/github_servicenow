@@ -83,24 +83,12 @@ jobs:
                   'monitoring checks': 'u_monitoring_checks'
 
 
-                   'request details': 'u_request_details'
+                  'request details': 'u_request_details'
                 };
                  
                  
                 let fieldId;
-                /*
-                // TESTING: Pure auto-generation only
-                // Auto-generate field ID with u_ prefix
-                fieldId = 'u_' + label
-                  .replace(/[^\w\s-]/g, '')  // Remove special chars
-                  .trim()
-                  .toLowerCase()
-                  .replace(/\s+/g, '_')      // Spaces to underscores
-                  .replace(/^u_+/, '');      // Remove duplicate u_
-                
-                console.log(`✓ [${++count}] "${label}" → ${fieldId} (auto-generated)`);
-                */
-                 
+              
                 if (knownFields[normalizedLabel]) {
                   // Use known mapping
                   fieldId = knownFields[normalizedLabel];
