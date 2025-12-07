@@ -39,7 +39,7 @@ body:
   - type: textarea
     id: u_short_description
     attributes:
-      label: "u_short_description | Short Description"
+      label: Short Description
       description: Provide a brief description of the request
     validations:
       required: true
@@ -49,7 +49,7 @@ body:
   - type: textarea
     id: description
     attributes:
-      label: "description | Description"
+      label: Description
       description: Provide a description of the request
     validations:
       required: true 
@@ -59,7 +59,7 @@ body:
   - type: dropdown
     id: priority
     attributes:
-      label: "priority | Priority"
+      label: Priority
       description: How urgent is this request?
       options:
         - Critical 
@@ -74,7 +74,7 @@ body:
   - type: dropdown
     id: u_impact
     attributes:
-      label: "u_impact | Impact"
+      label: Impact
       description: What is the expected impact of this request?
       options:
         - High 
@@ -88,7 +88,7 @@ body:
   - type: textarea
     id: u_impact_description_overall
     attributes:
-      label: "u_impact_description_overall | Impact Description (Overall)"
+      label: Impact Description (Overall)
       description: |
         - Describe overall system/application impact
       placeholder: |
@@ -101,7 +101,7 @@ body:
   - type: textarea
     id: u_impact_description_customer
     attributes:
-      label: "u_impact_description_customer | Impact Description (Customer)"
+      label: Impact Description (Customer)
       description: |
         - Describe customer/business impact
       placeholder: |
@@ -114,7 +114,7 @@ body:
   - type: dropdown
     id: u_project_environment
     attributes:
-      label: "u_project_environment | Environment Details"
+      label: Environment Details
       description: Select one or more environments
       options:
         - Development
@@ -130,7 +130,7 @@ body:
   - type: textarea
     id: u_affected_component
     attributes:
-      label: "u_affected_component | Affected Component"
+      label: Affected Component
       description: Specify the affected component(s)
     validations:
       required: true 
@@ -140,7 +140,7 @@ body:
   - type: textarea
     id: u_affected_services
     attributes:
-      label: "u_affected_services | Affected Services"
+      label: Affected Services
       description: Specify the affected Services(s)
     validations:
       required: true 
@@ -150,7 +150,7 @@ body:
   - type: textarea
     id: u_service_outage
     attributes:
-      label: "u_service_outage | Service Outage/Downtime"
+      label: Service Outage/Downtime
       description: >
         Describe the details of the potential outage. Mention if it will be a full or partial service outage, or just a slowness.
     validations:
@@ -161,7 +161,7 @@ body:
   - type: dropdown
     id: u_maintenance_window
     attributes:
-      label: "u_maintenance_window | Is a maintenance window required or not"
+      label: Is a maintenance window required or not
       description: Select whether a maintenance window is required for this change.
       options:
         - "Yes"
@@ -175,7 +175,7 @@ body:
   - type: textarea
     id: u_implementation_plan 
     attributes:
-      label: "u_implementation_plan | Implementation Plan" 
+      label: Implementation Plan
       description: Provide the implementation plan
     validations:
       required: true
@@ -185,7 +185,7 @@ body:
   - type: textarea
     id: u_test_plan 
     attributes:
-      label: "u_test_plan | Test Plan"
+      label: Test Plan
       description: Provide the test plan
     validations:
       required: true
@@ -195,7 +195,7 @@ body:
   - type: dropdown
     id: u_monitoring_checks
     attributes:
-      label: "u_monitoring_checks | Monitoring Checks" 
+      label: Monitoring Checks
       description: Have you verified that all the monitoring checks in staging have passed?
       options:
         - "Yes"
