@@ -59,7 +59,7 @@ jobs:
                 // Known field mappings for metadata
                 const knownFields = {
                   'template marker': 'template_marker',
-                  'servicenow catalog item': 'servicenow_catalog_item',
+                  'servicenow catalog item': 'catalog_item',
                   'catalog item': 'catalog_item',
                   'case type': 'case_type',
                   'priority': 'priority',
