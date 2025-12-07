@@ -1,14 +1,13 @@
 name: ServiceNow Integration
 
-
 on:
  issues:
    types: [opened]
 
 
 permissions:
-issues: write
-contents: read
+  issues: write
+  contents: read
 
 
 # Hardcode the project and product
