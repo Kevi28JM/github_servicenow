@@ -31,27 +31,44 @@ jobs:
             console.log('Issue body length:', body.length);
             
             // ============================================================
-            // EXTRACT ALL FIELDS USING DIRECT ID MATCHING
+            // EXTRACT ALL FIELDS USING MULTIPLE STRATEGIES
             // ============================================================
             function extractFields(body) {
               const fields = {};
               
-              // Match: ### field_id\n\nvalue
-              // \w+ matches word characters only (letters, numbers, underscores)
-              const regex = /###\s+([\w]+)\s*\n\n([\s\S]*?)(?=\n\n###|\n*$)/g;
+              // Log the raw body for debugging
+              console.log('\n🔍 RAW ISSUE BODY (first 500 chars):');
+              console.log(body.substring(0, 500));
+              console.log('...\n');
+              
+              // Strategy 1: Try to match field IDs with underscores (e.g., u_short_description)
+              // This pattern looks for ### followed by words with underscores
+              const regexWithUnderscore = /###\s+([\w_]+)\s*\n+([^\n][\s\S]*?)(?=\n+###|\n*$)/g;
               
               let match;
-              while ((match = regex.exec(body)) !== null) {
-                const fieldId = match[1];  // ← Direct field ID from template!
+              let foundCount = 0;
+              
+              while ((match = regexWithUnderscore.exec(body)) !== null) {
+                const fieldId = match[1].trim();
                 const value = match[2].trim();
                 
                 // Skip empty values
                 if (!value || value === '_No response_' || value === 'No response') {
+                  console.log(`⊗ Skipping empty field: ${fieldId}`);
                   continue;
                 }
                 
-                fields[fieldId] = value;
-                console.log(`✓ ${fieldId} = "${value.substring(0, 50)}${value.length > 50 ? '...' : ''}"`);
+                // Only keep fields that look like IDs (contain underscore or are known fields)
+                const knownFields = ['priority', 'description', 'impact'];
+                const isValidId = fieldId.includes('_') || knownFields.includes(fieldId.toLowerCase());
+                
+                if (isValidId) {
+                  fields[fieldId] = value;
+                  foundCount++;
+                  console.log(`✓ [${foundCount}] ${fieldId} = "${value.substring(0, 50)}${value.length > 50 ? '...' : ''}"`);
+                } else {
+                  console.log(`⊗ Skipped (looks like label): ${fieldId}`);
+                }
               }
               
               return fields;
