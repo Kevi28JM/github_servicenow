@@ -57,7 +57,7 @@ jobs:
                 const normalizedLabel = label.toLowerCase();
                 
                 // Known field mappings for metadata
-                /*
+                 
                 const knownFields = {
                   'template marker': 'template_marker',
                   'servicenow catalog item': 'catalog_item',
@@ -81,11 +81,14 @@ jobs:
                   'implementation plan': 'u_implementation_plan',
                   'test plan': 'u_test_plan',
                   'monitoring checks': 'u_monitoring_checks'
-                };
-                */
 
+
+                   'request details': 'u_request_details'
+                };
+                 
+                 
                 let fieldId;
-                
+                /*
                 // TESTING: Pure auto-generation only
                 // Auto-generate field ID with u_ prefix
                 fieldId = 'u_' + label
@@ -96,8 +99,8 @@ jobs:
                   .replace(/^u_+/, '');      // Remove duplicate u_
                 
                 console.log(`✓ [${++count}] "${label}" → ${fieldId} (auto-generated)`);
-                
-              /*  
+                */
+                 
                 if (knownFields[normalizedLabel]) {
                   // Use known mapping
                   fieldId = knownFields[normalizedLabel];
@@ -113,7 +116,7 @@ jobs:
                   
                   console.log(`✓ [${++count}] "${label}" → ${fieldId} (auto-generated)`);
                 }
-               */
+               
 
                 fields[fieldId] = value;
               }
