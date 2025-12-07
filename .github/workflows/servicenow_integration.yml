@@ -42,12 +42,12 @@ jobs:
             function extractFields(body) {
               const fields = {};
               
-              // Simple regex - capture field IDs directly
-              const regex = /###\s+([\w]+)\s*\n\n([\s\S]*?)(?=\n\n###|\n*$)/g;
+              // Regex that captures field names with spaces and special characters
+              const regex = /###\s+([^\n]+)\s*\n+([^\n][\s\S]*?)(?=\n###|\n*$)/g;
               
               let match;
               while ((match = regex.exec(body)) !== null) {
-                const fieldId = match[1];
+                const fieldName = match[1].trim();
                 const value = match[2].trim();
                 
                 // Skip empty values
@@ -55,8 +55,14 @@ jobs:
                   continue;
                 }
                 
+                // Convert field name to snake_case ID
+                const fieldId = fieldName
+                  .toLowerCase()
+                  .replace(/[^a-z0-9]+/g, '_')  // Replace non-alphanumeric with underscore
+                  .replace(/^_+|_+$/g, '');      // Remove leading/trailing underscores
+                
                 fields[fieldId] = value;
-                console.log(`✓ ${fieldId}`);
+                console.log(`✓ ${fieldName} → ${fieldId}`);
               }
               
               return fields;
@@ -75,11 +81,22 @@ jobs:
               allFields.catalog_item ||
               '';
             
-            const caseType = allFields.case_type || '';
+            const caseType = 
+              allFields.case_type || 
+              '';
+              
             const priority = allFields.priority || '';
+            
+            const shortDescription = 
+              allFields.short_description || 
+              allFields.title || 
+              '';
+            
+            const description = allFields.description || '';
+            
             const environment = 
-              allFields.u_project_environment ||
               allFields.environment_details ||
+              allFields.u_project_environment ||
               allFields.environment ||
               '';
             
@@ -168,6 +185,11 @@ jobs:
               case_type: finalCaseType,
               priority: finalPriority,
               u_project_environment: finalEnvironment,
+              
+              // Required ServiceNow fields
+              u_request_details: shortDescription || description || issue.title,
+              short_description: shortDescription || issue.title,
+              description: description,
               
               // Add metadata fields
               title: issue.title,
