@@ -20,9 +20,9 @@ jobs:
     steps:
       
       # ============================================================
-      # ⚠️ CHANGED: Simplified field extraction
+      # Parse Issue Form and Build Payload
       # ============================================================
-      - name: Parse Issue Form to JSON  # ⚠️ CHANGED: New step name
+      - name: Parse Issue Form to JSON
         id: parse
         uses: actions/github-script@v7
         with:
@@ -30,37 +30,30 @@ jobs:
             const issue = context.payload.issue;
             const body = issue.body || '';
             
-            console.log('📋 Parsing issue form to JSON...');  # ⚠️ CHANGED: Simpler title
-            console.log('📄 Body length:', body.length);  # ⚠️ CHANGED: Simpler log
-            
-            # ⚠️ REMOVED: All the "RAW ISSUE BODY" debug logging
-            # ⚠️ REMOVED: Multiple strategy regex attempts
-            # ⚠️ REMOVED: "knownFields" validation logic
+            console.log('📋 Parsing issue form to JSON...');
+            console.log('📄 Body length:', body.length);
             
             // ============================================================
-            // ⚠️ CHANGED: Single, clean extraction function
+            // FIELD EXTRACTION
             // ============================================================
             function extractFields(body) {
               const fields = {};
               
-              # ⚠️ CHANGED: Simpler regex - just capture field IDs directly
+              // Simple regex - capture field IDs directly
               const regex = /###\s+([\w]+)\s*\n\n([\s\S]*?)(?=\n\n###|\n*$)/g;
-              #           ↑ Simplified: Only word characters, no complex patterns
               
               let match;
               while ((match = regex.exec(body)) !== null) {
-                const fieldId = match[1];  # ⚠️ CHANGED: Direct capture (no .trim() needed)
+                const fieldId = match[1];
                 const value = match[2].trim();
                 
-                # ✅ UNCHANGED: Skip empty values
+                // Skip empty values
                 if (!value || value === '_No response_' || value === 'No response') {
                   continue;
                 }
                 
-                # ⚠️ REMOVED: isValidId check (accept ALL field IDs)
-                
                 fields[fieldId] = value;
-                console.log(`✓ ${fieldId}`);  # ⚠️ CHANGED: Simpler log
+                console.log(`✓ ${fieldId}`);
               }
               
               return fields;
@@ -70,10 +63,9 @@ jobs:
             const allFields = extractFields(body);
             
             console.log(`\n📦 Extracted ${Object.keys(allFields).length} fields`);
-             # ⚠️ REMOVED: Verbose JSON.stringify logging
             
             // ============================================================
-            // ⚠️ CHANGED: Simplified control field extraction
+            // CONTROL FIELD EXTRACTION
             // ============================================================
             const catalogItem = 
               allFields.servicenow_catalog_item || 
@@ -162,19 +154,19 @@ jobs:
               console.log('ℹ️ No priority specified, using default: 3 - Moderate');
             }
             
-             // ============================================================
-            // ⚠️ CHANGED: Build complete JSON payload here (not in separate step!)
+            // ============================================================
+            // BUILD COMPLETE JSON PAYLOAD
             // ============================================================
             const payload = {
-              ...allFields,  # ⚠️ NEW: Spread all extracted fields
+              ...allFields,
               
-              # ⚠️ NEW: Add/override processed fields
+              // Add/override processed fields
               catalog_item: catalogItem,
               case_type: finalCaseType,
               priority: finalPriority,
               u_project_environment: finalEnvironment,
               
-              # ⚠️ NEW: Add metadata fields directly
+              // Add metadata fields
               title: issue.title,
               issue_number: issue.number.toString(),
               issue_url: issue.html_url,
@@ -185,11 +177,11 @@ jobs:
               product: '${{ env.SERVICENOW_PRODUCT }}'
             };
             
-            # ⚠️ NEW: Output as single JSON string
+            // Output as single JSON string
             const jsonPayload = JSON.stringify(payload);
             core.setOutput('payload', jsonPayload);
             
-            # ⚠️ NEW: Keep individual outputs for comment step
+            // Keep individual outputs for comment step
             core.setOutput('catalog_item', catalogItem);
             core.setOutput('case_type', finalCaseType);
             core.setOutput('priority', finalPriority);
@@ -199,27 +191,21 @@ jobs:
             console.log('Fields:', Object.keys(payload).length);
 
       # ============================================================
-      # ⚠️ REMOVED: Entire "Build ServiceNow Payload" step
-      # (Now done in parse step above)
+      # Send to ServiceNow
       # ============================================================
-
-      # ============================================================
-      # ⚠️ CHANGED: Simplified send step
-      # ============================================================
-
       - name: Send to ServiceNow
         id: send_servicenow
         run: |
           echo "📤 Sending to ServiceNow..."
           
-          # ⚠️ NEW: Payload is already complete from parse step!
+          # Payload is already complete from parse step
           PAYLOAD='${{ steps.parse.outputs.payload }}'
           
-          # ⚠️ NEW: Show preview
+          # Show preview
           echo "📄 Payload preview:"
           echo "$PAYLOAD" | jq '.' || echo "$PAYLOAD"
           
-          # ⚠️ CHANGED: Use env variable for URL
+          # Send request
           HTTP_CODE=$(curl -X POST \
             -H "Content-Type: application/json" \
             -H "User-Agent: GitHub-Actions-WSO2/1.0" \
@@ -229,7 +215,7 @@ jobs:
             -s \
             "${{ env.SERVICENOW_URL }}")
 
-            echo ""
+          echo ""
           echo "📥 HTTP Status: $HTTP_CODE"
           echo "📥 Response:"
           cat response.json | jq '.' || cat response.json
@@ -243,11 +229,10 @@ jobs:
             echo "❌ Failed (HTTP $HTTP_CODE)"
             exit 1
           fi
+
       # ============================================================
       # Comment on success
       # ============================================================
-
-
       - name: Comment on Issue - Success
         if: success()
         uses: actions/github-script@v7
@@ -285,20 +270,20 @@ jobs:
             *Your ${caseType.toLowerCase()} has been submitted and will be processed by the support team.*
 
             *Automated via GitHub Actions*`;
-            
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: commentBody
-            });
+                        
+                        await github.rest.issues.createComment({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          issue_number: context.issue.number,
+                          body: commentBody
+                        });
 
-      - name: Comment on Issue - Failure
-        if: failure()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const commentBody = `## ❌ ServiceNow Case Creation Failed
+                  - name: Comment on Issue - Failure
+                    if: failure()
+                    uses: actions/github-script@v7
+                    with:
+                      script: |
+                        const commentBody = `## ❌ ServiceNow Case Creation Failed
 
             Failed to create case in ServiceNow.
 
@@ -310,10 +295,10 @@ jobs:
 
             ---
             *Contact support if the issue persists. Reference issue #${context.issue.number}*`;
-            
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: commentBody
-            });
+                        
+                        await github.rest.issues.createComment({
+                          owner: context.repo.owner,
+                          repo: context.repo.repo,
+                          issue_number: context.issue.number,
+                          body: commentBody
+                        });
