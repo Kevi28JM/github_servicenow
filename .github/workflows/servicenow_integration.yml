@@ -85,9 +85,6 @@ jobs:
                 */
 
                 let fieldId;
-
-
-                 let fieldId;
                 
                 // TESTING: Pure auto-generation only
                 // Auto-generate field ID with u_ prefix
