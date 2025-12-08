@@ -207,9 +207,7 @@ jobs:
               "<strong>" + (.key | gsub("^u_"; "") | gsub("_"; " ") | ascii_upcase) + ":</strong><br/>" +
               (.value | gsub("\n"; "<br/>")) + "<br/><br/>"
             ) | join("")) +
-            "<br/><strong>────────────────────────────────────────────────────────────</strong><br/>" +
-           // "<strong>Automated via GitHub Actions</strong><br/>" +
-           // "<strong>Workflow Run:</strong> ${{ github.run_id }}"
+            "<br/><strong>────────────────────────────────────────────────────────────</strong><br/>"
           ')
           
           # Merge all fields with GitHub metadata + formatted description
