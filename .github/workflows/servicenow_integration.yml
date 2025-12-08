@@ -387,6 +387,7 @@ jobs:
             }
             
             const fieldCount = Object.keys(allFields).length;
+            const issue_number = '${{ steps.get_issue.outputs.issue_number }}';
             
             const commentBody = `## ✅ ServiceNow Case Created Successfully
 
