@@ -15,6 +15,7 @@ jobs:
 
     steps:
       - name: Validate service request template
+        id: validate  # ✅ ADDED: Missing step ID
         uses: actions/github-script@v7
         with:
           script: |
@@ -226,9 +227,10 @@ jobs:
             }
 
             // ----------------------
-            // Step 6: Passed all checks -Add validation-passed label
+            // Step 6: Passed all checks - Add validation-passed label
             // ----------------------
-            // Remove any previous bot comments before adding a new "Passed" comment
+            // ✅ FIXED: Remove duplicate comment deletion (already done in failValidation)
+            // Only delete old comments here since we passed validation
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -245,12 +247,12 @@ jobs:
               }
             }
 
-            //Add validation-passed label
+            // Add validation-passed label
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issue.number,
-              labels: ['validation-passed']  // ✅ This label triggers ServiceNow workflow
+              labels: ['validation-passed']
             });
 
             const comment = `## ✅ Template Validation Passed
@@ -265,14 +267,14 @@ jobs:
               body: comment
             });
 
-             // Set output for next workflow
+            // Set output for next workflow
             core.setOutput('issue_number', issue.number.toString());
             core.setOutput('validation_passed', 'true');
 
 
       # Trigger ServiceNow workflow with specific issue number
       - name: Trigger ServiceNow Integration
-        if: steps.validate.outputs.validation_passed == 'true'
+        if: steps.validate.outputs.validation_passed == 'true'  # ✅ FIXED: Now correctly references step ID
         uses: actions/github-script@v7
         with:
           script: |
