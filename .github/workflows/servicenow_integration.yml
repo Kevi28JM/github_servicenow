@@ -15,13 +15,7 @@ env:
 jobs:
   send-to-servicenow:
     runs-on: ubuntu-latest
-    if: |
-      github.event.label.name == 'Type/ServiceRequest' &&
-      contains(github.event.issue.labels.*.name, 'Type/ServiceRequest') &&
-      (contains(github.event.issue.labels.*.name, 'SRType/NormalChange') ||
-       contains(github.event.issue.labels.*.name, 'SRType/Information') ||
-       contains(github.event.issue.labels.*.name, 'SRType/EmergencyChange'))
-    
+    if: github.event.label.name == 'validation-passed'
     steps:
 
       - name: Extract All Fields Dynamically
