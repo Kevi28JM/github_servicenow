@@ -12,7 +12,7 @@ body:
     attributes:
       label: "Template Marker"
       description: "Do not remove or modify. Used for validation."
-      value: "SR Generic"
+      value: "SR NormalChange"
     validations:
       required: true
 
