@@ -61,6 +61,24 @@ jobs:
               core.setOutput('should_process', 'false');
               return;
             }
+
+            // ✅ ADDED: Check if already processed to prevent duplicates
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: parseInt(issue_number)
+            });
+
+            const alreadyProcessed = comments.some(c => 
+              c.user.type === 'Bot' && 
+              c.body.includes('ServiceNow Case Created Successfully')
+            );
+
+            if (alreadyProcessed) {
+              console.log('Issue already processed - ServiceNow case already created');
+              core.setOutput('should_process', 'false');
+              return;
+            }
             
             core.setOutput('should_process', 'true');
             core.setOutput('issue_body', issue.body || '');
