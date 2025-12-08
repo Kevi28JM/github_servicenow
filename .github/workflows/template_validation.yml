@@ -8,6 +8,8 @@ on:
 # Allow workflow to comment on issues and manage labels
 permissions:
   issues: write
+  contents: write  # ✅ ADDED: Required for repository_dispatch
+
 
 jobs:
   validate-template:
