@@ -1,8 +1,10 @@
 name: ServiceNow Integration (Fully Dynamic)
 
 on:
-  issues:
-    types: [labeled]  # Only triggers when label is added
+  workflow_run:
+    workflows: ["Template Validation"]  # ✅ Triggers after validation completes
+    types:
+      - completed
 
 permissions:
   issues: write
@@ -15,16 +17,87 @@ env:
 jobs:
   send-to-servicenow:
     runs-on: ubuntu-latest
-    if: github.event.label.name == 'validation-passed'
+    if: github.event.workflow_run.conclusion == 'success'  #Checks if validation succeeded
     steps:
 
+      - name: Get Issue Number
+        id: get_issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Get the issue number from the triggering workflow
+            const artifacts = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.payload.workflow_run.id,
+            });
+            
+            // Try to get issue number from workflow run
+            const issue_number = context.payload.workflow_run.pull_requests[0]?.number || 
+                                 context.payload.workflow_run.head_branch.match(/\d+/)?.[0];
+            
+            if (!issue_number) {
+              // Fallback: search for issues with validation-passed label
+              const { data: issues } = await github.rest.issues.listForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                labels: 'validation-passed',
+                state: 'open',
+                sort: 'updated',
+                direction: 'desc',
+                per_page: 1
+              });
+              
+              if (issues.length > 0) {
+                core.setOutput('issue_number', issues[0].number);
+                return;
+              }
+              
+              core.setFailed('Could not determine issue number');
+              return;
+            }
+            
+            core.setOutput('issue_number', issue_number);
+
+      
+      - name: Get Issue Details
+        id: get_issue_details
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue_number = '${{ steps.get_issue.outputs.issue_number }}';
+            
+            const { data: issue } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: parseInt(issue_number)
+            });
+            
+            // Check if validation-passed label exists
+            const hasValidationPassed = issue.labels.some(l => l.name === 'validation-passed');
+            
+            if (!hasValidationPassed) {
+              console.log('Issue does not have validation-passed label, skipping');
+              core.setOutput('should_process', 'false');
+              return;
+            }
+            
+            core.setOutput('should_process', 'true');
+            core.setOutput('issue_body', issue.body || '');
+            core.setOutput('issue_title', issue.title || '');
+            core.setOutput('issue_url', issue.html_url || '');
+            core.setOutput('github_user', issue.user.login || '');
+            core.setOutput('labels', issue.labels.map(l => l.name).join(', '));
+
+            
       - name: Extract All Fields Dynamically
+        if: steps.get_issue_details.outputs.should_process == 'true'
+     
         id: extract_fields
         uses: actions/github-script@v7
         with:
           script: |
-            const issue = context.payload.issue;
-            const body = issue.body || '';
+            const body = `${{ steps.get_issue_details.outputs.issue_body }}`;
             
             console.log('='.repeat(80));
             console.log('FULLY DYNAMIC FIELD EXTRACTOR');
@@ -174,6 +247,7 @@ jobs:
             console.log('='.repeat(80));
 
       - name: Build Dynamic Payload
+        if: steps.get_issue_details.outputs.should_process == 'true'
         id: build_payload
         run: |
           echo "Building fully dynamic payload..."
@@ -182,12 +256,12 @@ jobs:
           ALL_FIELDS='${{ steps.extract_fields.outputs.all_fields }}'
           
           # GitHub metadata
-          ISSUE_NUMBER="${{ github.event.issue.number }}"
-          ISSUE_TITLE='${{ github.event.issue.title }}'
-          ISSUE_URL="${{ github.event.issue.html_url }}"
-          GITHUB_USER="${{ github.event.issue.user.login }}"
+          ISSUE_NUMBER="${{ steps.get_issue.outputs.issue_number }}"
+          ISSUE_TITLE='${{ steps.get_issue_details.outputs.issue_title }}'
+          ISSUE_URL="${{ steps.get_issue_details.outputs.issue_url }}"
+          GITHUB_USER="${{ steps.get_issue_details.outputs.github_user }}"
           REPO_FULL_NAME="${{ github.repository }}"
-          LABELS="${{ join(github.event.issue.labels.*.name, ', ') }}"
+          LABELS="${{ steps.get_issue_details.outputs.labels }}"
           
           # Environment variables
           PRODUCT="${{ env.SERVICENOW_PRODUCT }}"
@@ -243,6 +317,7 @@ jobs:
           echo "✅ Dynamic payload built successfully"
 
       - name: Send to ServiceNow
+        if: steps.get_issue_details.outputs.should_process == 'true'
         id: send_servicenow
         run: |
           SERVICENOW_URL="https://wso2sndev.service-now.com/api/wso2/test_sr"
@@ -283,7 +358,7 @@ jobs:
           fi
 
       - name: Comment on Issue - Success
-        if: success()
+        if: success() && steps.get_issue_details.outputs.should_process == 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -341,7 +416,7 @@ jobs:
             });
 
       - name: Comment on Issue - Failure
-        if: failure()
+        if: failure() && steps.get_issue_details.outputs.should_process == 'true'
         uses: actions/github-script@v7
         with:
           script: |
