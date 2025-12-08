@@ -411,7 +411,7 @@ jobs:
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
+              issue_number: parseInt(issue_number),
               body: commentBody
             });
 
@@ -422,6 +422,7 @@ jobs:
           script: |
             const catalogItem = '${{ steps.extract_fields.outputs.catalog_item }}';
             const caseType = '${{ steps.extract_fields.outputs.case_type }}';
+            const issue_number = '${{ steps.get_issue.outputs.issue_number }}';
             
             const commentBody = `## ❌ ServiceNow Case Creation Failed
 
@@ -439,6 +440,6 @@ jobs:
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
+              issue_number: parseInt(issue_number),
               body: commentBody
             });
