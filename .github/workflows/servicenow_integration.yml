@@ -2,7 +2,7 @@ name: ServiceNow Integration (Fully Dynamic)
 
 on:
   issues:
-    types: [opened]
+    types: [labeled]  # Only triggers when label is added
 
 permissions:
   issues: write
@@ -15,6 +15,13 @@ env:
 jobs:
   send-to-servicenow:
     runs-on: ubuntu-latest
+    if: |
+      github.event.label.name == 'Type/ServiceRequest' &&
+      contains(github.event.issue.labels.*.name, 'Type/ServiceRequest') &&
+      (contains(github.event.issue.labels.*.name, 'SRType/NormalChange') ||
+       contains(github.event.issue.labels.*.name, 'SRType/Information') ||
+       contains(github.event.issue.labels.*.name, 'SRType/EmergencyChange'))
+    
     steps:
 
       - name: Extract All Fields Dynamically
