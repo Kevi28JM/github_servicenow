@@ -135,9 +135,9 @@ jobs:
                   "Affected Services",
                   "Service Outage/Downtime",
                   "Is a maintenance window required or not",
-                  "Implementation plan",
-                  "Test plan",
-                  "Monitoring checks"
+                  "Implementation Plan",
+                  "Test Plan",
+                  "Monitoring Checks"
                 ]
               },
               "SRType/Information": {
