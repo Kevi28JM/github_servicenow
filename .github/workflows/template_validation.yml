@@ -194,8 +194,9 @@ jobs:
             // Step 4: Validate required fields
             // ----------------------
             const rules = rulesets[subtype];
-            const missingFields = rules.requiredFields.filter(f => !issueBody.includes(f));
-
+            const issueBodyLower = issueBody.toLowerCase();
+            const missingFields = rules.requiredFields.filter(f => !issueBodyLower.includes(f.toLowerCase()));
+            
             if (missingFields.length > 0) {
               const comment = `## ❌ Template Validation Failed
               
