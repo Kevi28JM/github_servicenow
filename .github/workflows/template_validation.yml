@@ -196,7 +196,7 @@ jobs:
             const rules = rulesets[subtype];
             const issueBodyLower = issueBody.toLowerCase();
             const missingFields = rules.requiredFields.filter(f => !issueBodyLower.includes(f.toLowerCase()));
-            
+
             if (missingFields.length > 0) {
               const comment = `## ❌ Template Validation Failed
               
@@ -226,7 +226,7 @@ jobs:
             }
 
             // ----------------------
-            // Step 6: Passed all checks
+            // Step 6: Passed all checks -Add validation-passed label
             // ----------------------
             // Remove any previous bot comments before adding a new "Passed" comment
             const { data: comments } = await github.rest.issues.listComments({
@@ -245,9 +245,19 @@ jobs:
               }
             }
 
+            //Add validation-passed label
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              labels: ['validation-passed']  // ✅ This label triggers ServiceNow workflow
+            });
+
             const comment = `## ✅ Template Validation Passed
               
-            All required checks succeeded for **${subtype}**.`;
+            All required checks succeeded for **${subtype}**.
+            The ServiceNow case will be created automatically.`;
+
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
