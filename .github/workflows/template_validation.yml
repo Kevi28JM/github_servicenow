@@ -10,14 +10,13 @@ permissions:
   issues: write
   contents: write  # ✅ ADDED: Required for repository_dispatch
 
-
 jobs:
   validate-template:
     runs-on: ubuntu-latest
 
     steps:
       - name: Validate service request template
-        id: validate  # ✅ ADDED: Missing step ID
+        id: validate
         uses: actions/github-script@v7
         with:
           script: |
@@ -34,6 +33,46 @@ jobs:
             const labels = issue.labels.map(l => l.name);
 
             console.log("All labels on issue:", labels);
+            console.log("Label that triggered this run:", labelName);
+
+            // ✅ CRITICAL FIX: Prevent duplicate runs
+            // Only process when BOTH labels are present
+            const hasType = labels.includes("Type/ServiceRequest");
+            const subtype = labels.find(l => l.startsWith("SRType/"));
+            
+            // Skip if we don't have both labels yet
+            if (!hasType || !subtype) {
+              if (!hasType && !subtype) {
+                console.log("⏭️ Neither label present - skipping validation");
+              } else if (!hasType) {
+                console.log("⏭️ Missing Type/ServiceRequest - waiting for it");
+              } else if (!subtype) {
+                console.log("⏭️ Missing SRType label - waiting for it");
+              }
+              return;
+            }
+            
+            // Check if already validated to prevent duplicate runs
+            const { data: existingComments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+            });
+            
+            const alreadyValidated = existingComments.some(c => 
+              c.user.type === "Bot" && 
+              (c.body.includes("✅ Template Validation Passed") || 
+               c.body.includes("❌ Template Validation Failed"))
+            );
+            
+            if (alreadyValidated) {
+              console.log("⏭️ Issue already validated - skipping duplicate run");
+              return;
+            }
+            
+            console.log("✅ Proceeding with validation - triggered by:", labelName);
+
+            console.log("✅ Proceeding with validation - triggered by:", labelName);
 
             // ----------------------
             // CASE BLOCK: Validate presence of labels
@@ -42,7 +81,8 @@ jobs:
             const subtype = labels.find(l => l.startsWith("SRType/"));
             const hasSubtype = !!subtype;
 
-            // CASE 1: Only Type/ServiceRequest
+            // These checks now only apply to validation failures
+            // CASE 1: Only Type/ServiceRequest (shouldn't happen due to early return above)
             if (hasType && !hasSubtype) {
               await failValidation(
                 `## ❌ Template Validation Failed
@@ -52,7 +92,7 @@ jobs:
               return;
             }
 
-            // CASE 2: Only SRType/...
+            // CASE 2: Only SRType/... (shouldn't happen due to early return above)
             if (!hasType && hasSubtype) {
               await failValidation(
                 `## ❌ Template Validation Failed
@@ -62,14 +102,14 @@ jobs:
               return;
             }
 
-            // CASE 3: Neither present — ignore
+            // CASE 3: Neither present — shouldn't reach here
             if (!hasType && !hasSubtype) {
-              console.log("⏭ Neither Type/ServiceRequest nor SRType label present — no validation needed.");
+              console.log("⏭ Neither label present — no validation needed.");
               return;
             }
 
             // CASE 4: Both present — continue full validation
-            console.log(`Detected subtype: ${subtype}`);
+            console.log(`✅ Both labels present. Detected subtype: ${subtype}`);
 
             // ----------------------
             // Reusable fail function
