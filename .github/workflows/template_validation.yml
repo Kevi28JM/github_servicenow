@@ -73,42 +73,8 @@ jobs:
             console.log("✅ Proceeding with validation - triggered by:", labelName);
 
             console.log("✅ Proceeding with validation - triggered by:", labelName);
-
-            // ----------------------
-            // CASE BLOCK: Validate presence of labels
-            // ----------------------
-            const hasType = labels.includes("Type/ServiceRequest");
-            const subtype = labels.find(l => l.startsWith("SRType/"));
-            const hasSubtype = !!subtype;
-
-            // These checks now only apply to validation failures
-            // CASE 1: Only Type/ServiceRequest (shouldn't happen due to early return above)
-            if (hasType && !hasSubtype) {
-              await failValidation(
-                `## ❌ Template Validation Failed
-                The **Type/ServiceRequest** label was added, but no **SRType/** label is present.`,
-                "Type/ServiceRequest"
-              );
-              return;
-            }
-
-            // CASE 2: Only SRType/... (shouldn't happen due to early return above)
-            if (!hasType && hasSubtype) {
-              await failValidation(
-                `## ❌ Template Validation Failed
-                The **${subtype}** label was added, but this issue does not have the **Type/ServiceRequest** label.`,
-                subtype
-              );
-              return;
-            }
-
-            // CASE 3: Neither present — shouldn't reach here
-            if (!hasType && !hasSubtype) {
-              console.log("⏭ Neither label present — no validation needed.");
-              return;
-            }
-
-            // CASE 4: Both present — continue full validation
+            
+            // At this point, both labels are confirmed to be present
             console.log(`✅ Both labels present. Detected subtype: ${subtype}`);
 
             // ----------------------
