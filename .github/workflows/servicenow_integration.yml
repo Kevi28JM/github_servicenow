@@ -300,6 +300,7 @@ jobs:
               title: $title,
               issue_number: $issue_number,
               issue_url: $issue_url,
+              u_github_issue_url: $issue_url,    # Maps GitHub issue URL to ServiceNow custom field
               github_user: $github_user,
               repository_full_name: $repository_full_name,
               labels: $labels,
