@@ -1,4 +1,4 @@
-name: ServiceNow Integration (Fully Dynamic)
+name: ServiceNow Integration (Fully Dynamic - SECURED)
 
 on:
   repository_dispatch:
@@ -12,6 +12,8 @@ permissions:
 env:
   SERVICENOW_PRODUCT: "WSO2 API Manager 1.10.0 Developer Portal"
   SERVICENOW_PROJECT: "Customer Portal Customer Project1 - Subscription"
+  # ✅ SECURITY: ServiceNow URL stored in GitHub Secrets
+  SERVICENOW_URL: ${{ secrets.SERVICENOW_URL }}
 
 jobs:
   send-to-servicenow:
@@ -300,7 +302,7 @@ jobs:
               title: $title,
               issue_number: $issue_number,
               issue_url: $issue_url,
-              u_github_issue_url: $issue_url,    # Maps GitHub issue URL to ServiceNow custom field
+              u_github_issue_url: $issue_url,
               github_user: $github_user,
               repository_full_name: $repository_full_name,
               labels: $labels,
@@ -315,23 +317,45 @@ jobs:
           echo ""
           echo "✅ Dynamic payload built successfully"
 
+      # ✅ SECURITY: Enhanced Send to ServiceNow with Authentication
       - name: Send to ServiceNow
         if: steps.get_issue_details.outputs.should_process == 'true'
         id: send_servicenow
         run: |
-          SERVICENOW_URL="https://wso2sndev.service-now.com/api/wso2/test_sr"
+          # ✅ SECURITY: URL from secrets (never hardcoded)
+          SERVICENOW_URL="${{ secrets.SERVICENOW_URL }}"
           
-          echo "📤 Sending to ServiceNow: $SERVICENOW_URL"
+          # ✅ SECURITY: API credentials from secrets
+          SERVICENOW_USERNAME="${{ secrets.SERVICENOW_USERNAME }}"
+          SERVICENOW_PASSWORD="${{ secrets.SERVICENOW_PASSWORD }}"
+          
+          # ✅ ALTERNATIVE: API Key/Token authentication (if ServiceNow supports it)
+          # SERVICENOW_API_KEY="${{ secrets.SERVICENOW_API_KEY }}"
+          
+          echo "📤 Sending to ServiceNow (URL hidden for security)"
           echo ""
           
+          # ✅ SECURITY: Using Basic Authentication with credentials from secrets
           HTTP_CODE=$(curl -X POST \
             -H "Content-Type: application/json" \
             -H "User-Agent: GitHub-Actions-WSO2/1.0" \
+            -u "${SERVICENOW_USERNAME}:${SERVICENOW_PASSWORD}" \
             -d @payload.json \
             -w "%{http_code}" \
             -o response.json \
             -s \
             "$SERVICENOW_URL")
+          
+          # ✅ ALTERNATIVE: If using API Key instead of Basic Auth
+          # HTTP_CODE=$(curl -X POST \
+          #   -H "Content-Type: application/json" \
+          #   -H "Authorization: Bearer ${SERVICENOW_API_KEY}" \
+          #   -H "User-Agent: GitHub-Actions-WSO2/1.0" \
+          #   -d @payload.json \
+          #   -w "%{http_code}" \
+          #   -o response.json \
+          #   -s \
+          #   "$SERVICENOW_URL")
           
           echo "HTTP Status: $HTTP_CODE"
           echo ""
