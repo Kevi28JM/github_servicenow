@@ -4,6 +4,9 @@ on:
   repository_dispatch:
     types: [validation-passed]  # ✅ Triggered directly by validation workflow
 
+concurrency:
+     group: servicenow-issue-${{ github.event.client_payload.issue_number }}
+     cancel-in-progress: false
 
 permissions:
   issues: write

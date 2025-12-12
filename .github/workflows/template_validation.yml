@@ -5,6 +5,12 @@ on:
   issues:
     types: [labeled]
 
+# ✅ FIX: Prevent duplicate runs for the same issue
+concurrency:
+  group: validation-issue-${{ github.event.issue.number }}
+  cancel-in-progress: false  # Let first run complete
+
+
 # Allow workflow to comment on issues and manage labels
 permissions:
   issues: write
@@ -72,7 +78,7 @@ jobs:
             
             console.log("✅ Proceeding with validation - triggered by:", labelName);
 
-            console.log("✅ Proceeding with validation - triggered by:", labelName);
+            //console.log("✅ Proceeding with validation - triggered by:", labelName);
             
             // At this point, both labels are confirmed to be present
             console.log(`✅ Both labels present. Detected subtype: ${subtype}`);
