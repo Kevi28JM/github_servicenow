@@ -417,10 +417,10 @@ jobs:
             const fieldCount = Object.keys(allFields).length;
             const issue_number = '${{ steps.get_issue.outputs.issue_number }}';
 
-            # // ✅ Extract base URL from your API endpoint
-            # const apiUrl = '${{ secrets.SERVICENOW_URL }}';
-            # const servicenowBaseUrl = apiUrl.split('/api/')[0];
-            # // Result: https://wso2sndev.service-now.com
+            // ✅ Extract base URL from your API endpoint
+            //const apiUrl = '${{ secrets.SERVICENOW_URL }}';
+            //const servicenowBaseUrl = apiUrl.split('/api/')[0];
+            // Result: https://wso2sndev.service-now.com
             
             # 
             
