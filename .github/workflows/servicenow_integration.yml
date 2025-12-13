@@ -421,12 +421,12 @@ jobs:
           SERVICENOW_URL="${{ secrets.SERVICENOW_URL }}"
           SERVICENOW_USERNAME="${{ secrets.SERVICENOW_USERNAME }}"
           SERVICENOW_PASSWORD="${{ secrets.SERVICENOW_PASSWORD }}"
-          SERVICENOW_UI_URL="${{ secrets.SERVICENOW_UI_URL }}"
+          //SERVICENOW_UI_URL="${{ secrets.SERVICENOW_UI_URL }}"
           
           echo "🔍 Querying Change Requests for Case"
           echo "   Case Number: ${CASE_NUMBER:-NOT_SET}"
           echo "   Case Sys ID: ${CASE_SYS_ID:-NOT_SET}"
-          echo "   ServiceNow URL: ${SERVICENOW_UI_URL:-NOT_SET}"
+          echo "   ServiceNow URL: ${SERVICENOW_URL:-NOT_SET}"
           
           # Validate required variables
           if [ -z "$CASE_NUMBER" ]; then
@@ -435,8 +435,8 @@ jobs:
             exit 0
           fi
           
-          if [ -z "$SERVICENOW_UI_URL" ]; then
-            echo "❌ SERVICENOW_UI_URL is empty"
+          if [ -z "SERVICENOW_URL" ]; then
+            echo "❌ SERVICENOW_URL is empty"
             echo "cr_count=0" >> $GITHUB_OUTPUT
             exit 0
           fi
@@ -453,9 +453,9 @@ jobs:
           fi
           
           # Build query URL
-          QUERY_URL="${SERVICENOW_UI_URL}/api/now/table/change_request?sysparm_query=${SEARCH_FIELD}=${SEARCH_VALUE}&sysparm_fields=number,state,short_description,priority,sys_created_on,sys_id&sysparm_limit=50"
+          QUERY_URL="${SERVICENOW_URL}/api/now/table/change_request?sysparm_query=${SEARCH_FIELD}=${SEARCH_VALUE}&sysparm_fields=number,state,short_description,priority,sys_created_on,sys_id&sysparm_limit=50"
           
-          echo "   Query URL (masked): ${SERVICENOW_UI_URL}/api/now/table/change_request?sysparm_query=${SEARCH_FIELD}=***"
+          echo "   Query URL (masked): ${SERVICENOW_URL}/api/now/table/change_request?sysparm_query=${SEARCH_FIELD}=***"
           
           # Execute query
           HTTP_CODE=$(curl -s -w "%{http_code}" \
@@ -475,11 +475,11 @@ jobs:
             # Try alternative query method
             if [ "$SEARCH_FIELD" = "parent" ]; then
               echo "   Trying with parent.number instead..."
-              QUERY_URL="${SERVICENOW_UI_URL}/api/now/table/change_request?sysparm_query=parent.number=${CASE_NUMBER}&sysparm_fields=number,state,short_description,priority,sys_created_on,sys_id&sysparm_limit=50"
+              QUERY_URL="${SERVICENOW_URL}/api/now/table/change_request?sysparm_query=parent.number=${CASE_NUMBER}&sysparm_fields=number,state,short_description,priority,sys_created_on,sys_id&sysparm_limit=50"
             else
               echo "   Trying with parent sys_id instead..."
               if [ -n "$CASE_SYS_ID" ] && [ "$CASE_SYS_ID" != "null" ]; then
-                QUERY_URL="${SERVICENOW_UI_URL}/api/now/table/change_request?sysparm_query=parent=${CASE_SYS_ID}&sysparm_fields=number,state,short_description,priority,sys_created_on,sys_id&sysparm_limit=50"
+                QUERY_URL="${SERVICENOW_URL}/api/now/table/change_request?sysparm_query=parent=${CASE_SYS_ID}&sysparm_fields=number,state,short_description,priority,sys_created_on,sys_id&sysparm_limit=50"
               else
                 echo "   No valid sys_id for fallback"
                 echo "cr_count=0" >> $GITHUB_OUTPUT
@@ -526,7 +526,7 @@ jobs:
           
           if [ "$CR_COUNT" -gt 0 ]; then
             # Format CR list for GitHub comment with clickable links
-            CR_LIST=$(cat crs.json | jq -r --arg base_url "$SERVICENOW_UI_URL" '
+            CR_LIST=$(cat crs.json | jq -r --arg base_url "$SSERVICENOW_URL" '
               .result[] | 
               "- **[" + .number + "](" + $base_url + "/nav/ui/classic/params/target/change_request.do?sys_id=" + .sys_id + ")** - " + 
               (.state // "Unknown") + " - " + 
