@@ -500,10 +500,29 @@ jobs:
               ? `[${caseNumber}](${caseUrl})` 
               : `\`${caseNumber}\``;
             
+              // ✅ Add CR information
+            const crCount = '${{ steps.query_crs.outputs.cr_count }}' || '0';
+            const crList = `${{ steps.query_crs.outputs.cr_list }}` || '';
+            
+            let crSection = '';
+            if (parseInt(crCount) > 0) {
+              crSection = `
+
+            ### 📋 Associated Change Requests (${crCount})
+            ${crList}
+            `;
+            } else {
+              crSection = `
+
+            ### 📋 Associated Change Requests
+            *No change requests linked to this case yet.*
+            `;
+            }
             
             const commentBody = `## ✅ ServiceNow Case Created Successfully
 
             **Case Number:** ${caseNumberDisplay}
+            ${crSection}
 
             ### Request Details
             - **Catalog:** ${catalogItem}
