@@ -421,7 +421,7 @@ jobs:
           SERVICENOW_URL="${{ secrets.SERVICENOW_URL }}"
           SERVICENOW_USERNAME="${{ secrets.SERVICENOW_USERNAME }}"
           SERVICENOW_PASSWORD="${{ secrets.SERVICENOW_PASSWORD }}"
-          SERVICENOW_UI_URL: ${{ secrets.SERVICENOW_UI_URL }}
+          SERVICENOW_UI_URL= ${{ secrets.SERVICENOW_UI_URL }}
           
           echo "🔍 Querying Change Requests for Case: $CASE_NUMBER (sys_id: $CASE_SYS_ID)"
           
