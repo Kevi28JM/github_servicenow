@@ -421,6 +421,7 @@ jobs:
           SERVICENOW_URL="${{ secrets.SERVICENOW_URL }}"
           SERVICENOW_USERNAME="${{ secrets.SERVICENOW_USERNAME }}"
           SERVICENOW_PASSWORD="${{ secrets.SERVICENOW_PASSWORD }}"
+          SERVICENOW_UI_URL: ${{ secrets.SERVICENOW_UI_URL }}
           
           echo "🔍 Querying Change Requests for Case: $CASE_NUMBER (sys_id: $CASE_SYS_ID)"
           
@@ -435,7 +436,7 @@ jobs:
           fi
           
           # Query ServiceNow change_request table where parent = case sys_id
-          QUERY_URL="${SERVICENOW_URL}/api/now/table/change_request?sysparm_query=parent=${CASE_SYS_ID}&sysparm_fields=number,state,short_description,priority,sys_created_on&sysparm_limit=50"
+          QUERY_URL="${SERVICENOW_UI_URL}/api/now/table/change_request?sysparm_query=parent=${CASE_SYS_ID}&sysparm_fields=number,state,short_description,priority,sys_created_on&sysparm_limit=50"
           
           HTTP_CODE=$(curl -s -w "%{http_code}" \
             -u "${SERVICENOW_USERNAME}:${SERVICENOW_PASSWORD}" \
@@ -448,7 +449,7 @@ jobs:
             echo "   Trying with case_number as fallback..."
             
             # Fallback: try with case_number
-            QUERY_URL="${SERVICENOW_URL}/api/now/table/change_request?sysparm_query=parent=${CASE_NUMBER}&sysparm_fields=number,state,short_description,priority,sys_created_on&sysparm_limit=50"
+            QUERY_URL="${SERVICENOW_UI_URL}/api/now/table/change_request?sysparm_query=parent=${CASE_NUMBER}&sysparm_fields=number,state,short_description,priority,sys_created_on&sysparm_limit=50"
             
             HTTP_CODE=$(curl -s -w "%{http_code}" \
               -u "${SERVICENOW_USERNAME}:${SERVICENOW_PASSWORD}" \
