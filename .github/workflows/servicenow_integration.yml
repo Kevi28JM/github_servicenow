@@ -250,6 +250,7 @@ jobs:
             console.log('\n✅ Dynamic extraction complete!');
             console.log('='.repeat(80));
 
+
       - name: Build Dynamic Payload
         if: steps.get_issue_details.outputs.should_process == 'true'
         id: build_payload
@@ -321,6 +322,7 @@ jobs:
           echo ""
           echo "✅ Dynamic payload built successfully"
 
+
       # ✅ SECURITY: Enhanced Send to ServiceNow with Authentication
       - name: Send to ServiceNow
         if: steps.get_issue_details.outputs.should_process == 'true'
@@ -383,6 +385,75 @@ jobs:
             echo "❌ Failed to create case (HTTP $HTTP_CODE)"
             exit 1
           fi
+
+      
+      # 🆕 Query Change Requests Linked to This Case
+      
+      - name: Query Change Requests for Case
+        if: success() && steps.send_servicenow.outputs.case_sys_id != ''
+        id: query_crs
+        run: |
+          CASE_NUMBER="${{ steps.send_servicenow.outputs.case_number }}"
+          CASE_SYS_ID="${{ steps.send_servicenow.outputs.case_sys_id }}"
+          
+          SERVICENOW_URL="${{ secrets.SERVICENOW_URL }}"
+          SERVICENOW_USERNAME="${{ secrets.SERVICENOW_USERNAME }}"
+          SERVICENOW_PASSWORD="${{ secrets.SERVICENOW_PASSWORD }}"
+          
+          echo "🔍 Querying Change Requests for Case: $CASE_NUMBER"
+          echo "   Using sys_id: $CASE_SYS_ID"
+          
+          # Query ServiceNow change_request table where parent = case sys_id
+          QUERY_URL="${SERVICENOW_URL}/api/now/table/change_request?sysparm_query=parent=${CASE_SYS_ID}&sysparm_fields=number,state,short_description,priority,sys_created_on&sysparm_limit=50"
+          
+          HTTP_CODE=$(curl -s -w "%{http_code}" \
+            -u "${SERVICENOW_USERNAME}:${SERVICENOW_PASSWORD}" \
+            -H "Accept: application/json" \
+            -o crs.json \
+            "$QUERY_URL")
+          
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "⚠️  Failed to query CRs (HTTP $HTTP_CODE)"
+            echo "   Trying with case_number as fallback..."
+            
+            # Fallback: try with case_number
+            QUERY_URL="${SERVICENOW_URL}/api/now/table/change_request?sysparm_query=parent=${CASE_NUMBER}&sysparm_fields=number,state,short_description,priority,sys_created_on&sysparm_limit=50"
+            
+            HTTP_CODE=$(curl -s -w "%{http_code}" \
+              -u "${SERVICENOW_USERNAME}:${SERVICENOW_PASSWORD}" \
+              -H "Accept: application/json" \
+              -o crs.json \
+              "$QUERY_URL")
+            
+            if [ "$HTTP_CODE" != "200" ]; then
+              echo "⚠️  Failed to query CRs with fallback (HTTP $HTTP_CODE)"
+              echo "cr_count=0" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+          fi
+          
+          # Parse CR results
+          CR_COUNT=$(cat crs.json | jq '.result | length' 2>/dev/null || echo "0")
+          
+          echo "✅ Found $CR_COUNT Change Request(s)"
+          
+          if [ "$CR_COUNT" -gt 0 ]; then
+            # Format CR list for GitHub comment
+            CR_LIST=$(cat crs.json | jq -r '.result[] | "- **\(.number)** - \(.state) - \(.short_description // "No description")"')
+            
+            echo "cr_count=$CR_COUNT" >> $GITHUB_OUTPUT
+            echo "cr_list<<EOF" >> $GITHUB_OUTPUT
+            echo "$CR_LIST" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            
+            echo ""
+            echo "Change Requests:"
+            echo "$CR_LIST"
+          else
+            echo "cr_count=0" >> $GITHUB_OUTPUT
+            echo "   No CRs linked to this case yet"
+          fi
+
 
       - name: Comment on Issue - Success
         if: success() && steps.get_issue_details.outputs.should_process == 'true'
@@ -456,6 +527,7 @@ jobs:
               issue_number: parseInt(issue_number),
               body: commentBody
             });
+
 
       - name: Comment on Issue - Failure
         if: failure() && steps.get_issue_details.outputs.should_process == 'true'
