@@ -434,7 +434,7 @@ jobs:
             
             const commentBody = `## ✅ ServiceNow Case Created Successfully
 
-            **Case Number:** \`${caseNumber}\`
+            **Case Number:** ${caseNumberDisplay}
 
             ### Request Details
             - **Catalog:** ${catalogItem}
