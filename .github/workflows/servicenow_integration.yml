@@ -17,7 +17,7 @@ env:
   SERVICENOW_PROJECT: "Customer Portal Customer Project1 - Subscription"
   # ✅ SECURITY: ServiceNow URL stored in GitHub Secrets
   SERVICENOW_URL: ${{ secrets.SERVICENOW_URL }}
-  SERVICENOW_UI_URL: "https://wso2sndev.wso2.com" 
+  SERVICENOW_UI_URL: ${{ secrets.SERVICENOW_UI_URL }} 
 
 jobs:
   send-to-servicenow:
@@ -419,7 +419,7 @@ jobs:
 
              
             // Build ServiceNow case URL
-            const servicenowBaseUrl = '${{ env.SERVICENOW_UI_URL }}';
+            servicenowBaseUrl = '${{ secrets.SERVICENOW_UI_URL }}';
             const caseUrl = caseSysId 
               ? `${servicenowBaseUrl}/now/nav/ui/classic/params/target/sn_customerservice_case.do?sys_id=${caseSysId}&sysparm_view=wso2_cs_generic`
               : null;
