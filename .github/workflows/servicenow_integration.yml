@@ -412,139 +412,139 @@ jobs:
           cat response.json | jq -r '.result.sys_id // .sys_id // .result.case_sys_id // .case_sys_id // "NOT_FOUND"'
       
       - name: Query Change Requests for Case
-  if: success() && steps.send_servicenow.outputs.case_number != ''
-  id: query_crs
-  run: |
-    CASE_NUMBER="${{ steps.send_servicenow.outputs.case_number }}"
-    CASE_SYS_ID="${{ steps.send_servicenow.outputs.case_sys_id }}"
-    
-    SERVICENOW_URL="${{ secrets.SERVICENOW_URL }}"
-    SERVICENOW_USERNAME="${{ secrets.SERVICENOW_USERNAME }}"
-    SERVICENOW_PASSWORD="${{ secrets.SERVICENOW_PASSWORD }}"
-    SERVICENOW_UI_URL="${{ secrets.SERVICENOW_UI_URL }}"
-    
-    echo "🔍 Querying Change Requests for Case"
-    echo "   Case Number: ${CASE_NUMBER:-NOT_SET}"
-    echo "   Case Sys ID: ${CASE_SYS_ID:-NOT_SET}"
-    echo "   ServiceNow URL: ${SERVICENOW_UI_URL:-NOT_SET}"
-    
-    # Validate required variables
-    if [ -z "$CASE_NUMBER" ]; then
-      echo "❌ CASE_NUMBER is empty"
-      echo "cr_count=0" >> $GITHUB_OUTPUT
-      exit 0
-    fi
-    
-    if [ -z "$SERVICENOW_UI_URL" ]; then
-      echo "❌ SERVICENOW_UI_URL is empty"
-      echo "cr_count=0" >> $GITHUB_OUTPUT
-      exit 0
-    fi
-    
-    # Determine which value to use for querying
-    if [ -n "$CASE_SYS_ID" ] && [ "$CASE_SYS_ID" != "null" ]; then
-      SEARCH_VALUE="$CASE_SYS_ID"
-      SEARCH_FIELD="parent"
-      echo "   Using sys_id for search: $CASE_SYS_ID"
-    else
-      SEARCH_VALUE="$CASE_NUMBER"
-      SEARCH_FIELD="parent.number"
-      echo "   Using case_number for search: $CASE_NUMBER (sys_id not available)"
-    fi
-    
-    # Build query URL
-    QUERY_URL="${SERVICENOW_UI_URL}/api/now/table/change_request?sysparm_query=${SEARCH_FIELD}=${SEARCH_VALUE}&sysparm_fields=number,state,short_description,priority,sys_created_on,sys_id&sysparm_limit=50"
-    
-    echo "   Query URL (masked): ${SERVICENOW_UI_URL}/api/now/table/change_request?sysparm_query=${SEARCH_FIELD}=***"
-    
-    # Execute query
-    HTTP_CODE=$(curl -s -w "%{http_code}" \
-      -u "${SERVICENOW_USERNAME}:${SERVICENOW_PASSWORD}" \
-      -H "Accept: application/json" \
-      -o crs.json \
-      "$QUERY_URL")
-    
-    echo "   HTTP Response Code: $HTTP_CODE"
-    
-    if [ "$HTTP_CODE" != "200" ]; then
-      echo "⚠️  First query failed (HTTP $HTTP_CODE)"
-      echo "   Response content:"
-      cat crs.json 2>/dev/null || echo "No response file"
-      echo ""
-      
-      # Try alternative query method
-      if [ "$SEARCH_FIELD" = "parent" ]; then
-        echo "   Trying with parent.number instead..."
-        QUERY_URL="${SERVICENOW_UI_URL}/api/now/table/change_request?sysparm_query=parent.number=${CASE_NUMBER}&sysparm_fields=number,state,short_description,priority,sys_created_on,sys_id&sysparm_limit=50"
-      else
-        echo "   Trying with parent sys_id instead..."
-        if [ -n "$CASE_SYS_ID" ] && [ "$CASE_SYS_ID" != "null" ]; then
-          QUERY_URL="${SERVICENOW_UI_URL}/api/now/table/change_request?sysparm_query=parent=${CASE_SYS_ID}&sysparm_fields=number,state,short_description,priority,sys_created_on,sys_id&sysparm_limit=50"
-        else
-          echo "   No valid sys_id for fallback"
-          echo "cr_count=0" >> $GITHUB_OUTPUT
-          exit 0
-        fi
-      fi
-      
-      HTTP_CODE=$(curl -s -w "%{http_code}" \
-        -u "${SERVICENOW_USERNAME}:${SERVICENOW_PASSWORD}" \
-        -H "Accept: application/json" \
-        -o crs.json \
-        "$QUERY_URL")
-      
-      echo "   Fallback HTTP Response Code: $HTTP_CODE"
-      
-      if [ "$HTTP_CODE" != "200" ]; then
-        echo "⚠️  Fallback query also failed (HTTP $HTTP_CODE)"
-        echo "   Response content:"
-        cat crs.json 2>/dev/null || echo "No response file"
-        echo "cr_count=0" >> $GITHUB_OUTPUT
-        exit 0
-      fi
-    fi
-    
-    # Check if response file exists and is valid JSON
-    if [ ! -f "crs.json" ]; then
-      echo "❌ Response file not created"
-      echo "cr_count=0" >> $GITHUB_OUTPUT
-      exit 0
-    fi
-    
-    # Parse CR results
-    CR_COUNT=$(cat crs.json | jq -r '.result | length' 2>/dev/null || echo "0")
-    
-    # Handle non-numeric or empty CR_COUNT
-    if ! [[ "$CR_COUNT" =~ ^[0-9]+$ ]]; then
-      echo "⚠️  Invalid CR count received: $CR_COUNT"
-      echo "   Full response:"
-      cat crs.json
-      CR_COUNT=0
-    fi
-    
-    echo "✅ Found $CR_COUNT Change Request(s)"
-    
-    if [ "$CR_COUNT" -gt 0 ]; then
-      # Format CR list for GitHub comment with clickable links
-      CR_LIST=$(cat crs.json | jq -r --arg base_url "$SERVICENOW_UI_URL" '
-        .result[] | 
-        "- **[" + .number + "](" + $base_url + "/nav/ui/classic/params/target/change_request.do?sys_id=" + .sys_id + ")** - " + 
-        (.state // "Unknown") + " - " + 
-        (.short_description // "No description")
-      ' 2>/dev/null || echo "- Error formatting CR list")
-      
-      echo "cr_count=$CR_COUNT" >> $GITHUB_OUTPUT
-      echo "cr_list<<EOF" >> $GITHUB_OUTPUT
-      echo "$CR_LIST" >> $GITHUB_OUTPUT
-      echo "EOF" >> $GITHUB_OUTPUT
-      
-      echo ""
-      echo "Change Requests:"
-      echo "$CR_LIST"
-    else
-      echo "cr_count=0" >> $GITHUB_OUTPUT
-      echo "   No CRs linked to this case yet"
-    fi
+        if: success() && steps.send_servicenow.outputs.case_number != ''
+        id: query_crs
+        run: |
+          CASE_NUMBER="${{ steps.send_servicenow.outputs.case_number }}"
+          CASE_SYS_ID="${{ steps.send_servicenow.outputs.case_sys_id }}"
+          
+          SERVICENOW_URL="${{ secrets.SERVICENOW_URL }}"
+          SERVICENOW_USERNAME="${{ secrets.SERVICENOW_USERNAME }}"
+          SERVICENOW_PASSWORD="${{ secrets.SERVICENOW_PASSWORD }}"
+          SERVICENOW_UI_URL="${{ secrets.SERVICENOW_UI_URL }}"
+          
+          echo "🔍 Querying Change Requests for Case"
+          echo "   Case Number: ${CASE_NUMBER:-NOT_SET}"
+          echo "   Case Sys ID: ${CASE_SYS_ID:-NOT_SET}"
+          echo "   ServiceNow URL: ${SERVICENOW_UI_URL:-NOT_SET}"
+          
+          # Validate required variables
+          if [ -z "$CASE_NUMBER" ]; then
+            echo "❌ CASE_NUMBER is empty"
+            echo "cr_count=0" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          if [ -z "$SERVICENOW_UI_URL" ]; then
+            echo "❌ SERVICENOW_UI_URL is empty"
+            echo "cr_count=0" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Determine which value to use for querying
+          if [ -n "$CASE_SYS_ID" ] && [ "$CASE_SYS_ID" != "null" ]; then
+            SEARCH_VALUE="$CASE_SYS_ID"
+            SEARCH_FIELD="parent"
+            echo "   Using sys_id for search: $CASE_SYS_ID"
+          else
+            SEARCH_VALUE="$CASE_NUMBER"
+            SEARCH_FIELD="parent.number"
+            echo "   Using case_number for search: $CASE_NUMBER (sys_id not available)"
+          fi
+          
+          # Build query URL
+          QUERY_URL="${SERVICENOW_UI_URL}/api/now/table/change_request?sysparm_query=${SEARCH_FIELD}=${SEARCH_VALUE}&sysparm_fields=number,state,short_description,priority,sys_created_on,sys_id&sysparm_limit=50"
+          
+          echo "   Query URL (masked): ${SERVICENOW_UI_URL}/api/now/table/change_request?sysparm_query=${SEARCH_FIELD}=***"
+          
+          # Execute query
+          HTTP_CODE=$(curl -s -w "%{http_code}" \
+            -u "${SERVICENOW_USERNAME}:${SERVICENOW_PASSWORD}" \
+            -H "Accept: application/json" \
+            -o crs.json \
+            "$QUERY_URL")
+          
+          echo "   HTTP Response Code: $HTTP_CODE"
+          
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "⚠️  First query failed (HTTP $HTTP_CODE)"
+            echo "   Response content:"
+            cat crs.json 2>/dev/null || echo "No response file"
+            echo ""
+            
+            # Try alternative query method
+            if [ "$SEARCH_FIELD" = "parent" ]; then
+              echo "   Trying with parent.number instead..."
+              QUERY_URL="${SERVICENOW_UI_URL}/api/now/table/change_request?sysparm_query=parent.number=${CASE_NUMBER}&sysparm_fields=number,state,short_description,priority,sys_created_on,sys_id&sysparm_limit=50"
+            else
+              echo "   Trying with parent sys_id instead..."
+              if [ -n "$CASE_SYS_ID" ] && [ "$CASE_SYS_ID" != "null" ]; then
+                QUERY_URL="${SERVICENOW_UI_URL}/api/now/table/change_request?sysparm_query=parent=${CASE_SYS_ID}&sysparm_fields=number,state,short_description,priority,sys_created_on,sys_id&sysparm_limit=50"
+              else
+                echo "   No valid sys_id for fallback"
+                echo "cr_count=0" >> $GITHUB_OUTPUT
+                exit 0
+              fi
+            fi
+            
+            HTTP_CODE=$(curl -s -w "%{http_code}" \
+              -u "${SERVICENOW_USERNAME}:${SERVICENOW_PASSWORD}" \
+              -H "Accept: application/json" \
+              -o crs.json \
+              "$QUERY_URL")
+            
+            echo "   Fallback HTTP Response Code: $HTTP_CODE"
+            
+            if [ "$HTTP_CODE" != "200" ]; then
+              echo "⚠️  Fallback query also failed (HTTP $HTTP_CODE)"
+              echo "   Response content:"
+              cat crs.json 2>/dev/null || echo "No response file"
+              echo "cr_count=0" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+          fi
+          
+          # Check if response file exists and is valid JSON
+          if [ ! -f "crs.json" ]; then
+            echo "❌ Response file not created"
+            echo "cr_count=0" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Parse CR results
+          CR_COUNT=$(cat crs.json | jq -r '.result | length' 2>/dev/null || echo "0")
+          
+          # Handle non-numeric or empty CR_COUNT
+          if ! [[ "$CR_COUNT" =~ ^[0-9]+$ ]]; then
+            echo "⚠️  Invalid CR count received: $CR_COUNT"
+            echo "   Full response:"
+            cat crs.json
+            CR_COUNT=0
+          fi
+          
+          echo "✅ Found $CR_COUNT Change Request(s)"
+          
+          if [ "$CR_COUNT" -gt 0 ]; then
+            # Format CR list for GitHub comment with clickable links
+            CR_LIST=$(cat crs.json | jq -r --arg base_url "$SERVICENOW_UI_URL" '
+              .result[] | 
+              "- **[" + .number + "](" + $base_url + "/nav/ui/classic/params/target/change_request.do?sys_id=" + .sys_id + ")** - " + 
+              (.state // "Unknown") + " - " + 
+              (.short_description // "No description")
+            ' 2>/dev/null || echo "- Error formatting CR list")
+            
+            echo "cr_count=$CR_COUNT" >> $GITHUB_OUTPUT
+            echo "cr_list<<EOF" >> $GITHUB_OUTPUT
+            echo "$CR_LIST" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+            
+            echo ""
+            echo "Change Requests:"
+            echo "$CR_LIST"
+          else
+            echo "cr_count=0" >> $GITHUB_OUTPUT
+            echo "   No CRs linked to this case yet"
+          fi
 
           
 
