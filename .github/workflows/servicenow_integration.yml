@@ -422,7 +422,7 @@ jobs:
           SERVICENOW_USERNAME="${{ secrets.SERVICENOW_USERNAME }}"
           SERVICENOW_PASSWORD="${{ secrets.SERVICENOW_PASSWORD }}"
           
-          echo "🔍 Querying Change Requests for Case: $CASE_NUMBER"
+          echo "🔍 Querying Change Requests for Case: $CASE_NUMBER (sys_id: $CASE_SYS_ID)"
           
           # Try multiple query approaches
           QUERY_ATTEMPTS=(
