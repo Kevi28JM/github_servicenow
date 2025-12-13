@@ -393,11 +393,11 @@ jobs:
           fi
 
       
-      # 🆕 Query Change Requests Linked to This Case
+       
       
-      # ============================================================================
-      # 🆕 NEW: Query Change Requests Linked to This Case
-      # ============================================================================
+     
+      # Query Change Requests Linked to This Case
+       
       - name: Debug - Check Case Info
         if: success()
         run: |
@@ -411,6 +411,7 @@ jobs:
           echo "Attempting to extract sys_id..."
           cat response.json | jq -r '.result.sys_id // .sys_id // .result.case_sys_id // .case_sys_id // "NOT_FOUND"'
       
+
       - name: Query Change Requests for Case
         if: success() && steps.send_servicenow.outputs.case_number != ''
         id: query_crs
@@ -429,7 +430,6 @@ jobs:
           echo "🔍 Querying Change Requests for Case"
           echo "   Case Number: ${CASE_NUMBER}"
           echo "   Case Sys ID: ${CASE_SYS_ID}"
-          echo "   Base URL: ${SERVICENOW_BASE_URL}"
           
           # Validate required variables
           if [ -z "$CASE_SYS_ID" ] || [ "$CASE_SYS_ID" = "null" ]; then
@@ -441,11 +441,11 @@ jobs:
           # Add delay to avoid rate limiting
           sleep 2
           
-          # Query the TASK table (not change_request) with sys_class_name filter
-          # This bypasses the permission issue with the parent field
-          QUERY_URL="${SERVICENOW_BASE_URL}/api/now/table/task?sysparm_query=parent=${CASE_SYS_ID}^sys_class_name=change_request&sysparm_fields=number,state,short_description,sys_id,sys_created_on,priority&sysparm_limit=50"
+          # Query the TASK table with sys_class_name filter
+          # sysparm_display_value=true returns readable state names instead of numeric codes
+          QUERY_URL="${SERVICENOW_BASE_URL}/api/now/table/task?sysparm_query=parent=${CASE_SYS_ID}^sys_class_name=change_request&sysparm_fields=number,state,sys_id&sysparm_display_value=true&sysparm_limit=50"
           
-          echo "   Querying task table for change_requests with parent=${CASE_SYS_ID}..."
+          echo "   Querying task table for change requests..."
           
           # Execute query
           HTTP_CODE=$(curl -s -w "%{http_code}" \
@@ -490,14 +490,12 @@ jobs:
           if [ "$CR_COUNT" -gt 0 ]; then
             echo ""
             echo "Change Requests:"
-            cat crs.json | jq -r '.result[] | "  - \(.number): \(.short_description // "No description")"'
+            cat crs.json | jq -r '.result[] | "  - \(.number): \(.state // "Unknown")"'
             
-            # Format CR list with clickable links
+            # Format CR list: [CHG0038282](url) - New
             CR_LIST=$(cat crs.json | jq -r --arg base_url "$SERVICENOW_UI_URL" '
               .result[] | 
-              "- **[" + .number + "](" + $base_url + "/nav/ui/classic/params/target/change_request.do?sys_id=" + .sys_id + ")** - " + 
-              (.state // "Unknown") + " - " + 
-              (.short_description // "No description")
+              "- [" + .number + "](" + $base_url + "/nav/ui/classic/params/target/change_request.do?sys_id=" + .sys_id + ") - " + (.state // "Unknown")
             ' 2>/dev/null || echo "- Error formatting CR list")
             
             echo "cr_count=$CR_COUNT" >> $GITHUB_OUTPUT
@@ -512,7 +510,6 @@ jobs:
             echo "   No CRs linked to this case yet"
             echo "cr_count=0" >> $GITHUB_OUTPUT
           fi
-                
 
       - name: Comment on Issue - Success
         if: success() && steps.get_issue_details.outputs.should_process == 'true'
