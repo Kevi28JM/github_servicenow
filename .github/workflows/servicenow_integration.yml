@@ -17,6 +17,7 @@ env:
   SERVICENOW_PROJECT: "Customer Portal Customer Project1 - Subscription"
   # ✅ SECURITY: ServiceNow URL stored in GitHub Secrets
   SERVICENOW_URL: ${{ secrets.SERVICENOW_URL }}
+  SERVICENOW_UI_URL: "https://wso2sndev.wso2.com" 
 
 jobs:
   send-to-servicenow:
@@ -416,14 +417,16 @@ jobs:
             const fieldCount = Object.keys(allFields).length;
             const issue_number = '${{ steps.get_issue.outputs.issue_number }}';
 
-            // ✅ Extract base URL from your API endpoint
-            const apiUrl = '${{ secrets.SERVICENOW_URL }}';
-            const servicenowBaseUrl = apiUrl.split('/api/')[0];
-            // Result: https://wso2sndev.service-now.com
+            # // ✅ Extract base URL from your API endpoint
+            # const apiUrl = '${{ secrets.SERVICENOW_URL }}';
+            # const servicenowBaseUrl = apiUrl.split('/api/')[0];
+            # // Result: https://wso2sndev.service-now.com
             
-            // ✅ Build the case URL
+            # 
+            
+            const servicenowBaseUrl = '${{ env.SERVICENOW_UI_URL }}';
             const caseUrl = caseSysId 
-              ? `${servicenowBaseUrl}/nav_to.do?uri=sn_customerservice_case.do?sys_id=${caseSysId}`
+              ? `${servicenowBaseUrl}/now/nav/ui/classic/params/target/sn_customerservice_case.do?sys_id=${caseSysId}&sysparm_view=wso2_cs_generic`
               : null;
             
             // ✅ Make case number clickable
