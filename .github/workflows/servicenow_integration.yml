@@ -492,10 +492,10 @@ jobs:
             echo "Change Requests:"
             cat crs.json | jq -r '.result[] | "  - \(.number): \(.state // "Unknown")"'
             
-            # Format CR list: [CHG0038282](url) - New
+           # Format CR list: [CHG0038282](url) - New
             CR_LIST=$(cat crs.json | jq -r --arg base_url "$SERVICENOW_UI_URL" '
               .result[] | 
-              "- [" + .number + "](" + $base_url + "/nav/ui/classic/params/target/change_request.do?sys_id=" + .sys_id + ") - " + (.state // "Unknown")
+              "- [**" + .number + "**](" + $base_url + "/now/nav/ui/classic/params/target/change_request.do?sys_id=" + .sys_id + "&sysparm_view=Change_Request) - " + (.state // "Unknown")
             ' 2>/dev/null || echo "- Error formatting CR list")
             
             echo "cr_count=$CR_COUNT" >> $GITHUB_OUTPUT
