@@ -417,13 +417,8 @@ jobs:
             const fieldCount = Object.keys(allFields).length;
             const issue_number = '${{ steps.get_issue.outputs.issue_number }}';
 
-            // ✅ Extract base URL from your API endpoint
-            //const apiUrl = '${{ secrets.SERVICENOW_URL }}';
-            //const servicenowBaseUrl = apiUrl.split('/api/')[0];
-            // Result: https://wso2sndev.service-now.com
-            
-            # 
-            
+             
+            // Build ServiceNow case URL
             const servicenowBaseUrl = '${{ env.SERVICENOW_UI_URL }}';
             const caseUrl = caseSysId 
               ? `${servicenowBaseUrl}/now/nav/ui/classic/params/target/sn_customerservice_case.do?sys_id=${caseSysId}&sysparm_view=wso2_cs_generic`
