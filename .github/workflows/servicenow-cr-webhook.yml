@@ -35,7 +35,7 @@ jobs:
             }
             
             const servicenowUiUrl = '${{ secrets.SERVICENOW_UI_URL }}';
-            const crUrl = `${servicenowUiUrl}/nav/ui/classic/params/target/change_request.do?sys_id=${crSysId}`;
+            const crUrl = `${servicenowUiUrl}/now/nav/ui/classic/params/target/change_request.do?sys_id=${crSysId}`;
             
             // Find the original ServiceNow case comment
             const { data: comments } = await github.rest.issues.listComments({
@@ -102,7 +102,7 @@ jobs:
             let crListMarkdown = '';
             if (allCRs.length > 0) {
               crListMarkdown = allCRs.map(cr => 
-                `- [${cr.number}](${servicenowUiUrl}/nav/ui/classic/params/target/change_request.do?sys_id=${cr.sys_id}) - ${cr.state || 'Unknown'}`
+                `- [${cr.number}](${servicenowUiUrl}/now/nav/ui/classic/params/target/change_request.do?sys_id=${cr.sys_id}) - ${cr.state || 'Unknown'}`
               ).join('\n');
             } else {
               crListMarkdown = '*No change requests linked to this case yet.*';
