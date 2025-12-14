@@ -35,24 +35,28 @@ jobs:
             }
             
             const servicenowUiUrl = '${{ secrets.SERVICENOW_UI_URL }}';
+            //build the clickable URL for the CR
             const crUrl = `${servicenowUiUrl}/now/nav/ui/classic/params/target/change_request.do?sys_id=${crSysId}`;
             
-            // Find the original ServiceNow case comment
+            // Find the original servicenow case comment
+            // List comments on the GitHub issue
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: parseInt(githubIssueNumber)
             });
-            
+
+            // Find the comment that indicates the ServiceNow case was created 
             const caseComment = comments.find(c => 
               c.user.type === 'Bot' && 
               c.body.includes('ServiceNow Case Created Successfully') &&
               c.body.includes(caseNumber)
             );
             
+            // If can't find the original comment, create a new one
             if (!caseComment) {
               console.log('Could not find original case comment - creating new comment instead');
-              
+  
               let commentBody = '';
               if (action === 'created') {
                 commentBody = `## New Change Request Created\n\n- [${crNumber}](${crUrl}) - ${crState}\n\n*Automatically notified by ServiceNow*`;
@@ -75,12 +79,14 @@ jobs:
             const servicenowUsername = '${{ secrets.SERVICENOW_USERNAME }}';
             const servicenowPassword = '${{ secrets.SERVICENOW_PASSWORD }}';
             
+            // Basic Auth header
             const auth = Buffer.from(`${servicenowUsername}:${servicenowPassword}`).toString('base64');
             
+            // Query servicenow for all CRs linked to this case
             const queryUrl = `${servicenowBaseUrl}/api/now/table/task?sysparm_query=parent=${caseSysId}^sys_class_name=change_request&sysparm_fields=number,state,sys_id&sysparm_display_value=true&sysparm_limit=50`;
             
             console.log('Querying ServiceNow for all CRs...');
-            
+            // Fetch CRs
             const response = await fetch(queryUrl, {
               headers: {
                 'Authorization': `Basic ${auth}`,
@@ -93,7 +99,9 @@ jobs:
               return;
             }
             
+            
             const data = await response.json();
+            // Extract CRs
             const allCRs = data.result || [];
             
             console.log(`Found ${allCRs.length} total CRs`);
@@ -101,6 +109,7 @@ jobs:
             // Build updated CR list
             let crListMarkdown = '';
             if (allCRs.length > 0) {
+            // Format each CR as a markdown link with state
               crListMarkdown = allCRs.map(cr => 
                 `- [${cr.number}](${servicenowUiUrl}/now/nav/ui/classic/params/target/change_request.do?sys_id=${cr.sys_id}) - ${cr.state || 'Unknown'}`
               ).join('\n');
@@ -112,9 +121,9 @@ jobs:
             const originalBody = caseComment.body;
             
             // Find the CR section and replace it
-            const crSectionRegex = /### 📋 Associated Change Requests.*?(?=\n###|\n---|\*Automated via|$)/s;
+            const crSectionRegex = /### Associated Change Requests.*?(?=\n###|\n---|\*Automated via|$)/s;
             
-            let newCrSection = `### 📋 Associated Change Requests (${allCRs.length})
+            let newCrSection = `### Associated Change Requests (${allCRs.length})
             ${crListMarkdown}`;
             
             // Add notification of what changed
