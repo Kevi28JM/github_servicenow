@@ -564,13 +564,13 @@ jobs:
             if (parseInt(crCount) > 0) {
               crSection = `
 
-            ### 📋 Associated Change Requests (${crCount})
+            ### Associated Change Requests (${crCount})
             ${crList}
             `;
             } else {
               crSection = `
 
-            ### 📋 Associated Change Requests
+            ### Associated Change Requests
             *No change requests linked to this case yet.*
             `;
             }
