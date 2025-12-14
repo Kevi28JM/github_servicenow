@@ -585,7 +585,7 @@ jobs:
             - **Type:** ${caseType}
             - **Priority:** ${priority}
             - **Environment:** ${environment}
-            - **Fields Submitted:** ${fieldCount}
+             
 
             ### Auto-Mapped
             - **Project:** ${{ env.SERVICENOW_PROJECT }}
