@@ -98,7 +98,8 @@ jobs:
 
             
       - name: Extract All Fields Dynamically
-        if: steps.get_issue_details.outputs.should_process == 'true' //Only runs if previous step set should_process to 'true'
+        #Only runs if previous step set should_process to 'true'
+        if: steps.get_issue_details.outputs.should_process == 'true' 
      
         id: extract_fields
         uses: actions/github-script@v7
