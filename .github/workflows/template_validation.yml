@@ -5,7 +5,7 @@ on:
   issues:
     types: [labeled]
 
-# ✅ FIX: Prevent duplicate runs for the same issue
+# Prevent duplicate runs for the same issue
 concurrency:
   group: validation-issue-${{ github.event.issue.number }}
   cancel-in-progress: false  # Let first run complete
@@ -14,7 +14,7 @@ concurrency:
 # Allow workflow to comment on issues and manage labels
 permissions:
   issues: write
-  contents: write  # ✅ ADDED: Required for repository_dispatch
+  contents: write  # Required for repository_dispatch
 
 jobs:
   validate-template:
@@ -41,7 +41,7 @@ jobs:
             console.log("All labels on issue:", labels);
             console.log("Label that triggered this run:", labelName);
 
-            // ✅ CRITICAL FIX: Prevent duplicate runs
+            //  Prevent duplicate runs
             // Only process when BOTH labels are present
             const hasType = labels.includes("Type/ServiceRequest");
             const subtype = labels.find(l => l.startsWith("SRType/"));
@@ -49,11 +49,11 @@ jobs:
             // Skip if we don't have both labels yet
             if (!hasType || !subtype) {
               if (!hasType && !subtype) {
-                console.log("⏭️ Neither label present - skipping validation");
+                console.log("⏭ Neither label present - skipping validation");
               } else if (!hasType) {
-                console.log("⏭️ Missing Type/ServiceRequest - waiting for it");
+                console.log("⏭ Missing Type/ServiceRequest - waiting for it");
               } else if (!subtype) {
-                console.log("⏭️ Missing SRType label - waiting for it");
+                console.log("⏭ Missing SRType label - waiting for it");
               }
               return;
             }
@@ -72,7 +72,7 @@ jobs:
             );
             
             if (alreadyValidated) {
-              console.log("⏭️ Issue already validated - skipping duplicate run");
+              console.log("⏭ Issue already validated - skipping duplicate run");
               return;
             }
             
@@ -243,7 +243,7 @@ jobs:
             // ----------------------
             // Step 6: Passed all checks - Add validation-passed label
             // ----------------------
-            // ✅ FIXED: Remove duplicate comment deletion (already done in failValidation)
+            // Remove duplicate comment deletion (already done in failValidation)
             // Only delete old comments here since we passed validation
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
@@ -288,7 +288,7 @@ jobs:
 
       # Trigger ServiceNow workflow with specific issue number
       - name: Trigger ServiceNow Integration
-        if: steps.validate.outputs.validation_passed == 'true'  # ✅ FIXED: Now correctly references step ID
+        if: steps.validate.outputs.validation_passed == 'true'  #  Now correctly references step ID
         uses: actions/github-script@v7
         with:
           script: |
