@@ -1,12 +1,13 @@
-name: ServiceNow Integration (Fully Dynamic - SECURED)
+name: ServiceNow Integration  
 
 on:
   repository_dispatch:
-    types: [validation-passed]  # ✅ Triggered directly by validation workflow
+    types: [validation-passed]  # Triggered directly by validation workflow
 
+#Prevents multiple concurrent runs for the same issue
 concurrency:
-     group: servicenow-issue-${{ github.event.client_payload.issue_number }}
-     cancel-in-progress: false
+     group: servicenow-issue-${{ github.event.client_payload.issue_number }} 
+     cancel-in-progress: false #Won't cancel a running job if a new one starts
 
 permissions:
   issues: write
@@ -15,7 +16,7 @@ permissions:
 env:
   SERVICENOW_PRODUCT: "WSO2 API Manager 1.10.0 Developer Portal"
   SERVICENOW_PROJECT: "Customer Portal Customer Project1 - Subscription"
-  # ✅ SECURITY: ServiceNow URL stored in GitHub Secrets
+  # ServiceNow URL stored in GitHub Secrets
   SERVICENOW_URL: ${{ secrets.SERVICENOW_URL }}
   SERVICENOW_UI_URL: ${{ secrets.SERVICENOW_UI_URL }} 
 
@@ -51,9 +52,10 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const issue_number = '${{ steps.get_issue.outputs.issue_number }}';
+            const issue_number = '${{ steps.get_issue.outputs.issue_number }}'; //Gets the issue number from the previous step
             
-            const { data: issue } = await github.rest.issues.get({
+            
+            const { data: issue } = await github.rest.issues.get({ //Calls github API to fetch issue details
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: parseInt(issue_number)
@@ -68,14 +70,14 @@ jobs:
               return;
             }
 
-            // ✅ ADDED: Check if already processed to prevent duplicates
-            const { data: comments } = await github.rest.issues.listComments({
+            // Check if already processed to prevent duplicates
+            const { data: comments } = await github.rest.issues.listComments({ //fetch all comments on the issue
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: parseInt(issue_number)
             });
 
-            const alreadyProcessed = comments.some(c => 
+            const alreadyProcessed = comments.some(c => //Checks if any comment matches
               c.user.type === 'Bot' && 
               c.body.includes('ServiceNow Case Created Successfully')
             );
@@ -86,6 +88,7 @@ jobs:
               return;
             }
             
+            //Saves each piece of issue info for later steps
             core.setOutput('should_process', 'true');
             core.setOutput('issue_body', issue.body || '');
             core.setOutput('issue_title', issue.title || '');
@@ -95,22 +98,20 @@ jobs:
 
             
       - name: Extract All Fields Dynamically
-        if: steps.get_issue_details.outputs.should_process == 'true'
+        if: steps.get_issue_details.outputs.should_process == 'true' //Only runs if previous step set should_process to 'true'
      
         id: extract_fields
         uses: actions/github-script@v7
         with:
           script: |
-            const body = `${{ steps.get_issue_details.outputs.issue_body }}`;
+            const body = `${{ steps.get_issue_details.outputs.issue_body }}`; //Gets the issue description text
             
-            console.log('='.repeat(80));
-            console.log('FULLY DYNAMIC FIELD EXTRACTOR');
-            console.log('='.repeat(80));
+            console.log('Fully dynamic field extractor');
             console.log('Issue body length:', body.length);
             
-            // ============================================================
             // EXTRACT ALL FIELDS AUTOMATICALLY
-            // ============================================================
+             
+            //Defines a function to parse the issue body and extract fields
             function extractAllFields(body) {
               const fields = {};
               
@@ -120,9 +121,11 @@ jobs:
               let match;
               let count = 0;
               
-              while ((match = regex.exec(body)) !== null) {
-                const label = match[1].trim();
-                const value = match[2].trim();
+              //Finds all matches in the text, one at a time
+              while ((match = regex.exec(body)) !== null) { //Finds next match continues until no more matches
+
+                const label = match[1].trim(); //First captured group (field name)
+                const value = match[2].trim(); //Second captured group (field value)
                 
                 // Skip empty or "No response" values
                 if (!value || value === '_No response_' || value === 'No response') {
@@ -130,10 +133,11 @@ jobs:
                   continue;
                 }
                 
-                // Convert label to field ID
+                // Convert label to field ID ,converts field name to lowercase for easier comparison
                 const normalizedLabel = label.toLowerCase();
                 
                 // Known field mappings for metadata
+                // Maps labels to servicenow field IDs
                 const knownFields = {
                   'template marker': 'template_marker',
                   'servicenow catalog item': 'catalog_item',
@@ -167,7 +171,7 @@ jobs:
                   fieldId = knownFields[normalizedLabel];
                   console.log(`✓ [${++count}] "${label}" → ${fieldId} (mapped)`);
                 } else {
-                  // Auto-generate field ID with u_ prefix
+                  // Auto-generate field ID with u_ prefix (For unknown labels it auto-generates a ServiceNow-style field name (prefix u_ and convert spaces to underscores)
                   fieldId = 'u_' + label
                     .replace(/[^\w\s-]/g, '')  // Remove special chars
                     .trim()
@@ -183,18 +187,17 @@ jobs:
               
               return fields;
             }
-            
+            //allFields is that resulting object where keys are ServiceNow field IDs and values are extracted from the issue body
             const allFields = extractAllFields(body);
             
             console.log(`\n Extracted ${Object.keys(allFields).length} fields`);
-            console.log('\n' + '-'.repeat(80));
+            
             console.log('ALL FIELDS:');
             console.log(JSON.stringify(allFields, null, 2));
-            console.log('-'.repeat(80));
-            
-            // ============================================================
+             
+             
             // IDENTIFY CONTROL FIELDS
-            // ============================================================
+
             const catalogItem = allFields.servicenow_catalog_item || 
                                allFields.catalog_item || 
                                'General Requests';
@@ -203,15 +206,9 @@ jobs:
             const priority = allFields.priority || 'Moderate';
             const environment = allFields.u_project_environment || 'Development';
             
-            console.log('\n Control Fields:');
-            console.log('  Catalog:', catalogItem);
-            console.log('  Case Type:', caseType);
-            console.log('  Priority:', priority);
-            console.log('  Environment:', environment);
             
-            // ============================================================
-            // MAP PRIORITY
-            // ============================================================
+            // MAP PRIORITY 
+
             const priorityMap = {
               'Critical': '1 - Critical',
               'High': '2 - High',
@@ -224,9 +221,9 @@ jobs:
             
             console.log('  Mapped Priority:', mappedPriority);
             
-            // ============================================================
+            
             // PARSE ENVIRONMENTS (if multiple)
-            // ============================================================
+             
             if (environment) {
               const parsedEnv = environment
                 .split(',')
@@ -238,9 +235,9 @@ jobs:
               console.log('  Parsed Environment:', parsedEnv);
             }
             
-            // ============================================================
+             
             // SET OUTPUTS
-            // ============================================================
+             
             core.setOutput('all_fields', JSON.stringify(allFields));
             core.setOutput('catalog_item', catalogItem);
             core.setOutput('case_type', caseType);
@@ -248,7 +245,7 @@ jobs:
             core.setOutput('environment', environment);
             
             console.log('\n✅ Dynamic extraction complete!');
-            console.log('='.repeat(80));
+            
 
 
       - name: Build Dynamic Payload
@@ -257,10 +254,11 @@ jobs:
         run: |
           echo "Building fully dynamic payload..."
           
+          # Create a final JSON payload file that will be sent to ServiceNow
           # Get all extracted fields
           ALL_FIELDS='${{ steps.extract_fields.outputs.all_fields }}'
           
-          # GitHub metadata
+          # Get gitHub metadata
           ISSUE_NUMBER="${{ steps.get_issue.outputs.issue_number }}"
           ISSUE_TITLE='${{ steps.get_issue_details.outputs.issue_title }}'
           ISSUE_URL="${{ steps.get_issue_details.outputs.issue_url }}"
@@ -281,7 +279,7 @@ jobs:
           echo "  ├─ Project: $PROJECT"
           echo "  └─ Product: $PRODUCT"
           
-          # Create a simple HTML formatted description (like your example)
+          # Create a simple HTML formatted description  
           FORMATTED_DESCRIPTION=$(echo "$ALL_FIELDS" | jq -r '
             (to_entries | map(
               "<strong>" + (.key | gsub("^u_"; "") | gsub("_"; " ") | ascii_upcase) + ":</strong><br/>" +
@@ -323,25 +321,28 @@ jobs:
           echo "✅ Dynamic payload built successfully"
 
 
-      # ✅ SECURITY: Enhanced Send to ServiceNow with Authentication
+      #  Enhanced Send to ServiceNow with Authentication
       - name: Send to ServiceNow
         if: steps.get_issue_details.outputs.should_process == 'true'
         id: send_servicenow
         run: |
-          # ✅ SECURITY: URL from secrets (never hardcoded)
+          # POST the payload to ServiceNow API and capture the response
+
+          # Reads servicenow URL and credentials from secrets (never hardcoded)
           SERVICENOW_URL="${{ secrets.SERVICENOW_URL }}"
           
-          # ✅ SECURITY: API credentials from secrets
+          # for API calls from GitHub Actions
+          #user must have proper permissions to access the ServiceNow API and create cases 
           SERVICENOW_USERNAME="${{ secrets.SERVICENOW_USERNAME }}"
           SERVICENOW_PASSWORD="${{ secrets.SERVICENOW_PASSWORD }}"
           
-          # ✅ ALTERNATIVE: API Key/Token authentication (if ServiceNow supports it)
-          # SERVICENOW_API_KEY="${{ secrets.SERVICENOW_API_KEY }}"
+           
           
-          echo "📤 Sending to ServiceNow (URL hidden for security)"
+          echo "Sending to ServiceNow (URL hidden for security)"
           echo ""
           
-          # ✅ SECURITY: Using Basic Authentication with credentials from secrets
+          # Using Basic Authentication with credentials from secrets
+          #Uses curl to POST payload.json to the ServiceNow endpoint, saving the body to response.json and capturing HTTP status in HTTP_CODE
           HTTP_CODE=$(curl -X POST \
             -H "Content-Type: application/json" \
             -H "User-Agent: GitHub-Actions-WSO2/1.0" \
@@ -352,7 +353,7 @@ jobs:
             -s \
             "$SERVICENOW_URL")
           
-          # ✅ ALTERNATIVE: If using API Key instead of Basic Auth
+          # If using API Key instead of Basic Auth
           # HTTP_CODE=$(curl -X POST \
           #   -H "Content-Type: application/json" \
           #   -H "Authorization: Bearer ${SERVICENOW_API_KEY}" \
@@ -392,15 +393,13 @@ jobs:
             exit 1
           fi
 
-      
-       
-      
      
       # Query Change Requests Linked to This Case
        
       - name: Debug - Check Case Info
         if: success()
         run: |
+          #Print the case info and whole response
           echo "=== DEBUG: Checking Case Information ==="
           echo "Case Number: ${{ steps.send_servicenow.outputs.case_number }}"
           echo "Case Sys ID: ${{ steps.send_servicenow.outputs.case_sys_id }}"
@@ -408,18 +407,21 @@ jobs:
           echo "Full response.json:"
           cat response.json | jq '.'
           echo ""
+
+          #confirm extraction of sys_id
           echo "Attempting to extract sys_id..."
           cat response.json | jq -r '.result.sys_id // .sys_id // .result.case_sys_id // .case_sys_id // "NOT_FOUND"'
       
-
+      #Find any Change Requests (CRs) linked to the created case and format them for a GitHub comment
       - name: Query Change Requests for Case
         if: success() && steps.send_servicenow.outputs.case_number != ''
         id: query_crs
         run: |
+          #reads case number and sys_id from previous step
           CASE_NUMBER="${{ steps.send_servicenow.outputs.case_number }}"
           CASE_SYS_ID="${{ steps.send_servicenow.outputs.case_sys_id }}"
           
-          # Extract base URL from custom REST API URL
+          # Builds a ServiceNow base URL from the REST URL secret  
           SERVICENOW_CUSTOM_URL="${{ secrets.SERVICENOW_URL }}"
           SERVICENOW_BASE_URL=$(echo "$SERVICENOW_CUSTOM_URL" | sed 's|/api/.*||')
           
@@ -427,13 +429,13 @@ jobs:
           SERVICENOW_PASSWORD="${{ secrets.SERVICENOW_PASSWORD }}"
           SERVICENOW_UI_URL="${{ secrets.SERVICENOW_UI_URL }}"
           
-          echo "🔍 Querying Change Requests for Case"
+          echo "  Querying Change Requests for Case"
           echo "   Case Number: ${CASE_NUMBER}"
           echo "   Case Sys ID: ${CASE_SYS_ID}"
           
           # Validate required variables
           if [ -z "$CASE_SYS_ID" ] || [ "$CASE_SYS_ID" = "null" ]; then
-            echo "⚠️  Case sys_id not available, cannot query CRs"
+            echo " Case sys_id not available, cannot query CRs"
             echo "cr_count=0" >> $GITHUB_OUTPUT
             exit 0
           fi
@@ -442,12 +444,13 @@ jobs:
           sleep 2
           
           # Query the TASK table with sys_class_name filter
-          # sysparm_display_value=true returns readable state names instead of numeric codes
+           
+          #Builds a query URL to the ServiceNow endpoint to get all change requests linked to the case
           QUERY_URL="${SERVICENOW_BASE_URL}/api/now/table/task?sysparm_query=parent=${CASE_SYS_ID}^sys_class_name=change_request&sysparm_fields=number,state,sys_id&sysparm_display_value=true&sysparm_limit=50"
           
           echo "   Querying task table for change requests..."
           
-          # Execute query
+          # Execute curl to get CRs, capture HTTP status
           HTTP_CODE=$(curl -s -w "%{http_code}" \
             -u "${SERVICENOW_USERNAME}:${SERVICENOW_PASSWORD}" \
             -H "Accept: application/json" \
@@ -459,10 +462,10 @@ jobs:
           echo "   HTTP Response Code: $HTTP_CODE"
           
           if [ "$HTTP_CODE" != "200" ]; then
-            echo "⚠️  Unable to query CRs (HTTP $HTTP_CODE)"
+            echo "  Unable to query CRs (HTTP $HTTP_CODE)"
             echo "   Response:"
             cat crs.json 2>/dev/null || echo "No response"
-            echo ""
+            echo ""Extract base URL from custom REST API URL
             echo "cr_count=0" >> $GITHUB_OUTPUT
             exit 0
           fi
@@ -479,7 +482,7 @@ jobs:
           CR_COUNT=$(cat crs.json | jq -r '.result | length' 2>/dev/null || echo "0")
           
           if ! [[ "$CR_COUNT" =~ ^[0-9]+$ ]]; then
-            echo "⚠️  Invalid CR count: $CR_COUNT"
+            echo "  Invalid CR count: $CR_COUNT"
             echo "   Full response:"
             cat crs.json | jq '.'
             CR_COUNT=0
@@ -511,14 +514,17 @@ jobs:
             echo "cr_count=0" >> $GITHUB_OUTPUT
           fi
 
+      #Post a comment on the GitHub issue to say the ServiceNow case was created and include details
       - name: Comment on Issue - Success
         if: success() && steps.get_issue_details.outputs.should_process == 'true'
         uses: actions/github-script@v7
         with:
           script: |
+            # Read the response.json file to get case details
             const fs = require('fs');
             let response = {};
             
+            # Parse the response.json to extract case details
             try {
               response = JSON.parse(fs.readFileSync('response.json', 'utf8'));
               if (response.result) response = response.result;
@@ -526,13 +532,15 @@ jobs:
               console.log('Could not read response:', e);
             }
             
+            # Extract case details
             const caseNumber = response.case_number || 'Unknown';
-            const caseSysId = response.case_sys_id || response.sys_id || '';  // Get sys_id  // Get sys_id
+            const caseSysId = response.case_sys_id || response.sys_id || '';  // Get sys_id   
             const catalogItem = '${{ steps.extract_fields.outputs.catalog_item }}';
             const caseType = '${{ steps.extract_fields.outputs.case_type }}';
             const priority = '${{ steps.extract_fields.outputs.priority }}';
-            const environment = '${{ steps.extract_fields.outputs.environment }}';
+            const environment = '${{ steps.extract_fields.outputs.environmeRead the JSON string of all extracted fields, parse it into an object. If parsing fails, keep an empty object and log the error.nt }}';
             
+            #Read the JSON string of all extracted fields, parse it into an object. If parsing fails, keep an empty object and log the error
             const allFieldsStr = '${{ steps.extract_fields.outputs.all_fields }}';
             let allFields = {};
             try {
@@ -545,18 +553,18 @@ jobs:
             const issue_number = '${{ steps.get_issue.outputs.issue_number }}';
 
              
-            // Build ServiceNow case URL
+            // Build ServiceNow case URL 
             servicenowBaseUrl = '${{ secrets.SERVICENOW_UI_URL }}';
             const caseUrl = caseSysId 
               ? `${servicenowBaseUrl}/now/nav/ui/classic/params/target/sn_customerservice_case.do?sys_id=${caseSysId}&sysparm_view=wso2_cs_generic`
               : null;
             
-            // ✅ Make case number clickable
+            //  Make case number clickable
             const caseNumberDisplay = caseUrl 
               ? `[${caseNumber}](${caseUrl})` 
               : `\`${caseNumber}\``;
             
-              // ✅ Add CR information
+              //  Add CR information
             const crCount = '${{ steps.query_crs.outputs.cr_count }}' || '0';
             const crList = `${{ steps.query_crs.outputs.cr_list }}` || '';
             
@@ -603,7 +611,7 @@ jobs:
               body: commentBody
             });
 
-
+      #If the workflow failed to create a case, post a failure comment with basic debug info
       - name: Comment on Issue - Failure
         if: failure() && steps.get_issue_details.outputs.should_process == 'true'
         uses: actions/github-script@v7
