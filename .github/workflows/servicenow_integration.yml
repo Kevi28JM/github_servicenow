@@ -538,9 +538,9 @@ jobs:
             const catalogItem = '${{ steps.extract_fields.outputs.catalog_item }}';
             const caseType = '${{ steps.extract_fields.outputs.case_type }}';
             const priority = '${{ steps.extract_fields.outputs.priority }}';
-            const environment = '${{ steps.extract_fields.outputs.environmeRead the JSON string of all extracted fields, parse it into an object. If parsing fails, keep an empty object and log the error.nt }}';
-            
-            #Read the JSON string of all extracted fields, parse it into an object. If parsing fails, keep an empty object and log the error
+            const environment = '${{ steps.extract_fields.outputs.environment }}';   
+
+            # Read the JSON string of all extracted fields, parse it into an object. If parsing fails, keep an empty object and log the error
             const allFieldsStr = '${{ steps.extract_fields.outputs.all_fields }}';
             let allFields = {};
             try {
