@@ -7,7 +7,7 @@ labels: ["Type/ServiceRequest", "SRType/NormalChange"]   # Auto adds these label
 
 body:
   # Hidden marker field used for workflow validation.
-  - type: input
+  - type: markdown
     id: template_marker
     attributes:
       label: "Template Marker"
