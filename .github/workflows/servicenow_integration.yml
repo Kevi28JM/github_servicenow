@@ -35,6 +35,10 @@ jobs:
             
             // Get issue number directly from the dispatch event payload
             const issue_number = context.payload.client_payload.issue_number;
+            const catalog_item = context.payload.client_payload.catalog_item;
+            const case_type = context.payload.client_payload.case_type;
+            const sr_type = context.payload.client_payload.sr_type;
+            const catalog_prefix = context.payload.client_payload.catalog_prefix;
             
             if (!issue_number) {
               core.setFailed('❌ No issue number in payload');
@@ -42,8 +46,15 @@ jobs:
             }
             
             console.log(`✅ Got issue number from dispatch: #${issue_number}`);
-            
+            console.log(`✅ Catalog Item: ${catalog_item}`);
+            console.log(`✅ Case Type: ${case_type}`);
+            console.log(`✅ SR Type: ${sr_type}`);
+
             core.setOutput('issue_number', issue_number.toString());
+            core.setOutput('catalog_item', catalog_item || 'General Requests');
+            core.setOutput('case_type', case_type || 'Service Request');
+            core.setOutput('sr_type', sr_type || 'Unknown');
+            core.setOutput('catalog_prefix', catalog_prefix || '');
             core.setOutput('found', 'true');
 
       
@@ -197,13 +208,14 @@ jobs:
             console.log(JSON.stringify(allFields, null, 2));
              
              
-            // IDENTIFY CONTROL FIELDS
-
-            const catalogItem = allFields.servicenow_catalog_item || 
-                               allFields.catalog_item || 
-                               'General Requests';
+            // Get control fields from dispatch payload instead of issue body
+            const catalogItem = '${{ steps.get_issue.outputs.catalog_item }}';
+            const caseType = '${{ steps.get_issue.outputs.case_type }}';
             
-            const caseType = allFields.case_type || 'Service Request';
+            console.log(' Using catalog_item from dispatch payload:', catalogItem);
+            console.log(' Using case_type from dispatch payload:', caseType);
+            
+            // Still extract priority and environment from issue body
             const priority = allFields.priority || 'Moderate';
             const environment = allFields.u_project_environment || 'Development';
             
