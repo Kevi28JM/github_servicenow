@@ -312,6 +312,8 @@ jobs:
             --arg repository_full_name "$REPO_FULL_NAME" \
             --arg labels "$LABELS" \
             --arg formatted_description "$FORMATTED_DESCRIPTION" \
+            --arg catalog_item "$CATALOG_ITEM" \
+            --arg case_type "$CASE_TYPE" \
             '. + {
               project: $project,
               product: $product,
@@ -322,7 +324,9 @@ jobs:
               github_user: $github_user,
               repository_full_name: $repository_full_name,
               labels: $labels,
-              description: $formatted_description
+              description: $formatted_description,
+              catalog_item: $catalog_item,
+              case_type: $case_type
             }')
           
           echo "$PAYLOAD" > payload.json
