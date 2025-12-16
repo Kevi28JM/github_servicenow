@@ -8,13 +8,11 @@ on:
 # Prevent duplicate runs for the same issue
 concurrency:
   group: validation-issue-${{ github.event.issue.number }}
-  cancel-in-progress: false  # Let first run complete
+  cancel-in-progress: false
 
-
-# Allow workflow to comment on issues and manage labels
 permissions:
   issues: write
-  contents: write  # Required for repository_dispatch
+  contents: write
 
 jobs:
   validate-template:
@@ -31,7 +29,6 @@ jobs:
             console.log(JSON.stringify(context.payload, null, 2));
             console.log("---- END PAYLOAD ----");
 
-            // Access the issue data from the GitHub event payload
             const issue = context.payload.issue;
             const issueTitle = issue.title || "";
             const issueBody = issue.body || "";
@@ -41,19 +38,24 @@ jobs:
             console.log("All labels on issue:", labels);
             console.log("Label that triggered this run:", labelName);
 
-            //  Prevent duplicate runs
-            // Only process when BOTH labels are present
-            const hasType = labels.includes("Type/ServiceRequest");
-            const subtype = labels.find(l => l.startsWith("SRType/"));
+            // ✏️ CHANGED: Dynamically find SRType and catalog labels
+            const srTypeLabel = labels.find(l => l.startsWith("SRType/"));
+            
+            // Find any label with "/" that's not SRType (this is the catalog label)
+            const catalogLabel = labels.find(l => 
+              l.includes("/") && 
+              !l.startsWith("SRType/") && 
+              !l.startsWith("Type/")
+            );
             
             // Skip if we don't have both labels yet
-            if (!hasType || !subtype) {
-              if (!hasType && !subtype) {
+            if (!srTypeLabel || !catalogLabel) {
+              if (!srTypeLabel && !catalogLabel) {
                 console.log("⏭ Neither label present - skipping validation");
-              } else if (!hasType) {
-                console.log("⏭ Missing Type/ServiceRequest - waiting for it");
-              } else if (!subtype) {
-                console.log("⏭ Missing SRType label - waiting for it");
+              } else if (!srTypeLabel) {
+                console.log("⏭ Missing SRType/ label - waiting for it");
+              } else if (!catalogLabel) {
+                console.log("⏭ Missing catalog label (e.g., Normal Change/Normal Change Requests) - waiting for it");
               }
               return;
             }
@@ -77,17 +79,30 @@ jobs:
             }
             
             console.log("✅ Proceeding with validation - triggered by:", labelName);
+            console.log(`✅ Both labels present. SRType: ${srTypeLabel}, Catalog: ${catalogLabel}`);
 
-            //console.log("✅ Proceeding with validation - triggered by:", labelName);
+            // ✏️ NEW: Extract values dynamically from labels
+            // Extract SR Type (e.g., "SRType/Normal Change" -> "Normal Change")
+            const srType = srTypeLabel.replace("SRType/", "");
             
-            // At this point, both labels are confirmed to be present
-            console.log(`✅ Both labels present. Detected subtype: ${subtype}`);
+            // Extract case type (always "Service Request" if SRType label exists)
+            const caseType = "Service Request";
+            
+            // Extract catalog item (e.g., "Normal Change/Normal Change Requests" -> "Normal Change Requests")
+            const catalogItem = catalogLabel.split("/")[1];
+            
+            // Extract catalog prefix (e.g., "Normal Change/Normal Change Requests" -> "Normal Change")
+            const catalogPrefix = catalogLabel.split("/")[0];
+            
+            console.log(`Extracted SR Type: ${srType}`);
+            console.log(`Extracted Case Type: ${caseType}`);
+            console.log(`Extracted Catalog Item: ${catalogItem}`);
+            console.log(`Extracted Catalog Prefix: ${catalogPrefix}`);
 
             // ----------------------
             // Reusable fail function
             // ----------------------
-            async function failValidation(message, labelToRemove = labelName) {
-              // Remove existing bot comments first to avoid duplicates
+            async function failValidation(message) {
               const { data: comments } = await github.rest.issues.listComments({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -104,7 +119,6 @@ jobs:
                 }
               }
 
-              // Post new failure comment
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
@@ -112,10 +126,12 @@ jobs:
                 body: message,
               });
 
-              // Remove both Type/ServiceRequest and SRType/... labels if present
-              const relatedLabels = ["Type/ServiceRequest", ...labels.filter(l => l.startsWith("SRType/"))];
+              // ✏️ CHANGED: Remove both SRType/ and catalog labels
+              const relatedLabels = [
+                ...labels.filter(l => l.startsWith("SRType/")),
+                ...labels.filter(l => l.includes("/") && !l.startsWith("SRType/") && !l.startsWith("Type/"))
+              ];
 
-              // Try to remove the incorrect label
               for (const lbl of relatedLabels) {
                 try {
                   await github.rest.issues.removeLabel({
@@ -134,10 +150,11 @@ jobs:
             }
 
             // ----------------------
-            // Rulesets per SR subtype
+            // ✏️ CHANGED: Rulesets based on full catalog label
             // ----------------------
             const rulesets = {
-              "SRType/NormalChange": {
+              // Normal Change templates
+              "Normal Change/Normal Change Requests": {
                 requiredFields: [
                   "Short Description",
                   "Description",
@@ -155,14 +172,9 @@ jobs:
                   "Monitoring Checks"
                 ]
               },
-              "SRType/Information": {
-                requiredFields: [
-                  "Request Description",
-                  "Impact",
-                  "Customer Project"
-                ]
-              },
-              "SRType/EmergencyChange": {
+              
+              // Emergency Change templates
+              "Emergency Change/Request Logs": {
                 requiredFields: [
                   "Short Description",
                   "Description",
@@ -175,20 +187,44 @@ jobs:
                 allowedValues: {
                   "Priority": ["Critical"]
                 }
+              },
+              
+              // Standard Change templates
+              "Standard Change/Generic": {
+                requiredFields: [
+                  "Short Description",
+                  "Description",
+                  "Priority",
+                  "Impact",
+                  "Environment Details"
+                ]
+              },
+              
+              // Add more catalog combinations as needed
+              "Normal Change/Information": {
+                requiredFields: [
+                  "Request Description",
+                  "Impact",
+                  "Customer Project"
+                ]
               }
             };
 
-            // ----------------------
-            // Step 2: Check template marker matches subtype
-            // ----------------------
-            const expectedMarker = `SR ${subtype.replace("SRType/", "")}`;
-            if (!issueBody.includes("Template Marker") || !issueBody.includes(expectedMarker)) {
+            // ✏️ NEW: Validate that SRType matches catalog prefix
+            // e.g., "SRType/Normal Change" should match "Normal Change/Normal Change Requests"
+            if (srType !== catalogPrefix) {
               const comment = `## ❌ Template Validation Failed
               
-              The \`${subtype}\` label was added, but this issue was not created using the **${subtype} template**.
+              **Label Mismatch Detected:**
+              - SRType label: \`${srTypeLabel}\` (Type: **${srType}**)
+              - Catalog label: \`${catalogLabel}\` (Prefix: **${catalogPrefix}**)
               
-              The label has been removed. Please recreate the issue using the correct template.`;
-              await failValidation(comment, subtype);
+              The SRType and catalog prefix must match. For example:
+              - \`SRType/Normal Change\` should be paired with \`Normal Change/Normal Change Requests\`
+              - \`SRType/Emergency Change\` should be paired with \`Emergency Change/Request Logs\`
+              
+              The labels have been removed. Please apply matching labels.`;
+              await failValidation(comment);
               return;
             }
 
@@ -200,26 +236,40 @@ jobs:
               
               The issue title must start with \`[SR-Change]:\`.
               
-              The label has been removed. Please recreate the issue using the ${subtype} template.`;
-              await failValidation(comment, subtype);
+              The labels have been removed. Please recreate the issue using the ${catalogLabel} template.`;
+              await failValidation(comment);
               return;
             }
 
             // ----------------------
-            // Step 4: Validate required fields
+            // Step 4: Validate required fields using catalog label
             // ----------------------
-            const rules = rulesets[subtype];
+            const rules = rulesets[catalogLabel];
+            
+            if (!rules) {
+              const comment = `## ❌ Template Validation Failed
+              
+              Unknown catalog type: **${catalogLabel}**
+              
+              **Available catalog types:**
+              ${Object.keys(rulesets).map(k => `- ${k}`).join("\n")}
+              
+              The labels have been removed. Please use a valid template.`;
+              await failValidation(comment);
+              return;
+            }
+            
             const issueBodyLower = issueBody.toLowerCase();
             const missingFields = rules.requiredFields.filter(f => !issueBodyLower.includes(f.toLowerCase()));
 
             if (missingFields.length > 0) {
               const comment = `## ❌ Template Validation Failed
               
-              **Missing Required Fields for ${subtype}:**
+              **Missing Required Fields for ${catalogLabel}:**
               ${missingFields.map(f => `- ${f}`).join("\n")}
               
-              The label has been removed. Please complete all required fields using the ${subtype} template.`;
-              await failValidation(comment, subtype);
+              The labels have been removed. Please complete all required fields using the ${catalogLabel} template.`;
+              await failValidation(comment);
               return;
             }
 
@@ -233,18 +283,16 @@ jobs:
                   
                   Field **${field}** must contain one of: ${allowed.join(", ")}
                   
-                  The label has been removed. Please correct the values using the ${subtype} template.`;
-                  await failValidation(comment, subtype);
+                  The labels have been removed. Please correct the values using the ${catalogLabel} template.`;
+                  await failValidation(comment);
                   return;
                 }
               }
             }
 
             // ----------------------
-            // Step 6: Passed all checks - Add validation-passed label
+            // Step 6: Passed all checks
             // ----------------------
-            // Remove duplicate comment deletion (already done in failValidation)
-            // Only delete old comments here since we passed validation
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -261,7 +309,6 @@ jobs:
               }
             }
 
-            // Add validation-passed label
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -271,7 +318,13 @@ jobs:
 
             const comment = `## ✅ Template Validation Passed
               
-            All required checks succeeded for **${subtype}**.
+            All required checks succeeded for **${catalogLabel}**.
+            
+            **Extracted Values:**
+            - SR Type: ${srType}
+            - Case Type: ${caseType}
+            - Catalog Item: ${catalogItem}
+            
             The ServiceNow case will be created automatically.`;
 
             await github.rest.issues.createComment({
@@ -281,28 +334,42 @@ jobs:
               body: comment
             });
 
-            // Set output for next workflow
             core.setOutput('issue_number', issue.number.toString());
             core.setOutput('validation_passed', 'true');
+            core.setOutput('sr_type', srType);
+            core.setOutput('case_type', caseType);
+            core.setOutput('catalog_item', catalogItem);
+            core.setOutput('catalog_prefix', catalogPrefix);
 
 
-      # Trigger ServiceNow workflow with specific issue number
+      # Trigger ServiceNow workflow
       - name: Trigger ServiceNow Integration
-        if: steps.validate.outputs.validation_passed == 'true'  #  Now correctly references step ID
+        if: steps.validate.outputs.validation_passed == 'true'
         uses: actions/github-script@v7
         with:
           script: |
             const issue_number = '${{ steps.validate.outputs.issue_number }}';
+            const sr_type = '${{ steps.validate.outputs.sr_type }}';
+            const case_type = '${{ steps.validate.outputs.case_type }}';
+            const catalog_item = '${{ steps.validate.outputs.catalog_item }}';
+            const catalog_prefix = '${{ steps.validate.outputs.catalog_prefix }}';
             
             console.log(`Triggering ServiceNow workflow for issue #${issue_number}`);
+            console.log(`SR Type: ${sr_type}`);
+            console.log(`Case Type: ${case_type}`);
+            console.log(`Catalog Item: ${catalog_item}`);
+            console.log(`Catalog Prefix: ${catalog_prefix}`);
             
-            // Trigger repository dispatch event with issue number
             await github.rest.repos.createDispatchEvent({
               owner: context.repo.owner,
               repo: context.repo.repo,
               event_type: 'validation-passed',
               client_payload: {
-                issue_number: parseInt(issue_number)
+                issue_number: parseInt(issue_number),
+                sr_type: sr_type,
+                case_type: case_type,
+                catalog_item: catalog_item,
+                catalog_prefix: catalog_prefix
               }
             });
             

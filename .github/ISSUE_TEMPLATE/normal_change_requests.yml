@@ -3,38 +3,9 @@
 name: Service Request-Normal Change 
 description: Request a normal change service related to the project
 title: "[SR-Change]: "                                     # Auto prefills the issue title 
-labels: ["Type/ServiceRequest", "SRType/NormalChange"]   # Auto adds these labels
+labels: ["SRType/Normal Change", "Normal Change/Normal Change Requests"]   # Auto adds these labels
 
 body:
-  # Hidden marker field used for workflow validation.
-  - type: input
-    id: template_marker
-    attributes:
-      label: "Template Marker"
-      description: "Do not remove or modify. Used for validation."
-      value: "SR NormalChange"
-    validations:
-      required: true
-
-  - type: input
-    id: catalog_item
-    attributes:
-      label: "ServiceNow Catalog Item"
-      description: "Do not modify."
-      value: "Normal Change Requests"  #new producer name
-    validations:
-      required: true
-
-  - type: input
-    id: case_type
-    attributes:
-      label: "Case Type"
-      description: "Do not modify."
-      value: "Service Request"
-    validations:
-      required: true
-
-
   # Short Description (textarea)
   - type: textarea
     id: u_short_description
