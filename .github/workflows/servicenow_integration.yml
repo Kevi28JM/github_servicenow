@@ -282,6 +282,10 @@ jobs:
           # Environment variables
           PRODUCT="${{ env.SERVICENOW_PRODUCT }}"
           PROJECT="${{ env.SERVICENOW_PROJECT }}"
+
+          CATALOG_ITEM="${{ steps.extract_fields.outputs.catalog_item }}"
+          CASE_TYPE="${{ steps.extract_fields.outputs.case_type }}"
+          
           
           echo " Payload Summary:"
           echo "  ├─ Catalog: ${{ steps.extract_fields.outputs.catalog_item }}"
