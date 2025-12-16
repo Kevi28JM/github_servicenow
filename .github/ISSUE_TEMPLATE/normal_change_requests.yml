@@ -8,10 +8,10 @@ labels: ["Type/ServiceRequest", "SRType/NormalChange"]   # Auto adds these label
 body:
   # Hidden marker field used for workflow validation.
   - type: markdown
-    id: template_marker
     attributes:
       value: |
-        # SR NormalChange
+        **Source:** Customer Incident Portal  
+        **SRE Owner:** On-call rotation
  
   - type: input
     id: catalog_item
