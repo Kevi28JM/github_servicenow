@@ -10,7 +10,8 @@ body:
   - type: markdown
     id: template_marker
     attributes:
-      value: "SR NormalChange"
+      value: | 
+        <!-- SR NormalChange -->
  
   - type: input
     id: catalog_item
