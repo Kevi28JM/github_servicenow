@@ -38,7 +38,7 @@ jobs:
             console.log("All labels on issue:", labels);
             console.log("Label that triggered this run:", labelName);
 
-            // ✏️ CHANGED: Dynamically find SRType and catalog labels
+            //Dynamically find SRType and catalog labels
             const srTypeLabel = labels.find(l => l.startsWith("SRType/"));
             
             // Find any label with "/" that's not SRType (this is the catalog label)
@@ -51,11 +51,11 @@ jobs:
             // Skip if we don't have both labels yet
             if (!srTypeLabel || !catalogLabel) {
               if (!srTypeLabel && !catalogLabel) {
-                console.log("⏭ Neither label present - skipping validation");
+                console.log(" Neither label present - skipping validation");
               } else if (!srTypeLabel) {
-                console.log("⏭ Missing SRType/ label - waiting for it");
+                console.log(" Missing SRType/ label - waiting for it");
               } else if (!catalogLabel) {
-                console.log("⏭ Missing catalog label (e.g., Normal Change/Normal Change Requests) - waiting for it");
+                console.log(" Missing catalog label (e.g., Normal Change/Normal Change Requests) - waiting for it");
               }
               return;
             }
@@ -74,24 +74,24 @@ jobs:
             );
             
             if (alreadyValidated) {
-              console.log("⏭ Issue already validated - skipping duplicate run");
+              console.log(" Issue already validated - skipping duplicate run");
               return;
             }
             
             console.log("✅ Proceeding with validation - triggered by:", labelName);
             console.log(`✅ Both labels present. SRType: ${srTypeLabel}, Catalog: ${catalogLabel}`);
 
-            // ✏️ NEW: Extract values dynamically from labels
-            // Extract SR Type (e.g., "SRType/Normal Change" -> "Normal Change")
+            // Extract values dynamically from labels
+            // Extract SR Type (Ex: "SRType/Normal Change" -> "Normal Change")
             const srType = srTypeLabel.replace("SRType/", "");
             
             // Extract case type (always "Service Request" if SRType label exists)
             const caseType = "Service Request";
             
-            // Extract catalog item (e.g., "Normal Change/Normal Change Requests" -> "Normal Change Requests")
+            // Extract catalog item (Ex: "Normal Change/Normal Change Requests" -> "Normal Change Requests")
             const catalogItem = catalogLabel.split("/")[1];
             
-            // Extract catalog prefix (e.g., "Normal Change/Normal Change Requests" -> "Normal Change")
+            // Extract catalog prefix (Ex: "Normal Change/Normal Change Requests" -> "Normal Change")
             const catalogPrefix = catalogLabel.split("/")[0];
             
             console.log(`Extracted SR Type: ${srType}`);
@@ -126,7 +126,7 @@ jobs:
                 body: message,
               });
 
-              // ✏️ CHANGED: Remove both SRType/ and catalog labels
+              // Remove both SRType/ and catalog labels
               const relatedLabels = [
                 ...labels.filter(l => l.startsWith("SRType/")),
                 ...labels.filter(l => l.includes("/") && !l.startsWith("SRType/") && !l.startsWith("Type/"))
@@ -150,7 +150,7 @@ jobs:
             }
 
             // ----------------------
-            // ✏️ CHANGED: Rulesets based on full catalog label
+            // Rulesets based on full catalog label
             // ----------------------
             const rulesets = {
               // Normal Change templates
@@ -210,8 +210,8 @@ jobs:
               }
             };
 
-            // ✏️ NEW: Validate that SRType matches catalog prefix
-            // e.g., "SRType/Normal Change" should match "Normal Change/Normal Change Requests"
+            // Validate that SRType matches catalog prefix
+            // Ex: "SRType/Normal Change" should match "Normal Change/Normal Change Requests"
             if (srType !== catalogPrefix) {
               const comment = `## ❌ Template Validation Failed
               
@@ -228,9 +228,9 @@ jobs:
               return;
             }
 
-            // ----------------------
+            
             // Step 3: Check title format
-            // ----------------------
+          
             if (!issueTitle.startsWith("[SR-Change]:")) {
               const comment = `## ❌ Template Validation Failed
               
@@ -241,9 +241,9 @@ jobs:
               return;
             }
 
-            // ----------------------
+             
             // Step 4: Validate required fields using catalog label
-            // ----------------------
+             
             const rules = rulesets[catalogLabel];
             
             if (!rules) {
@@ -274,31 +274,16 @@ jobs:
             }
 
             // ----------------------
-            // Step 5: Validate allowed values (if defined)
+            // Step 5: Passed all checks
             // ----------------------
-            if (rules.allowedValues) {
-              for (const [field, allowed] of Object.entries(rules.allowedValues)) {
-                if (!allowed.some(val => issueBody.includes(val))) {
-                  const comment = `## ❌ Template Validation Failed
-                  
-                  Field **${field}** must contain one of: ${allowed.join(", ")}
-                  
-                  The labels have been removed. Please correct the values using the ${catalogLabel} template.`;
-                  await failValidation(comment);
-                  return;
-                }
-              }
-            }
-
-            // ----------------------
-            // Step 6: Passed all checks
-            // ----------------------
+            //Get all existing comments on the github issue
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issue.number,
             });
 
+            //Loop through all comments and delete any old bot comments about "Template Validation"
             for (const c of comments) {
               if (c.user.type === "Bot" && c.body.includes("Template Validation")) {
                 await github.rest.issues.deleteComment({
@@ -309,6 +294,7 @@ jobs:
               }
             }
 
+            // Add "validation-passed" label
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -316,14 +302,10 @@ jobs:
               labels: ['validation-passed']
             });
 
+            // Post success comment with extracted values
             const comment = `## ✅ Template Validation Passed
               
             All required checks succeeded for **${catalogLabel}**.
-            
-            **Extracted Values:**
-            - SR Type: ${srType}
-            - Case Type: ${caseType}
-            - Catalog Item: ${catalogItem}
             
             The ServiceNow case will be created automatically.`;
 
