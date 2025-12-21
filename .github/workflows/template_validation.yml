@@ -55,7 +55,7 @@ jobs:
               } else if (!srTypeLabel) {
                 console.log(" Missing SRType/ label - waiting for it");
               } else if (!catalogLabel) {
-                console.log(" Missing catalog label (e.g., Normal Change/Normal Change Requests) - waiting for it");
+                console.log(" Missing catalog label (Ex: Normal Change/Generic Requests) - waiting for it");
               }
               return;
             }
@@ -88,10 +88,10 @@ jobs:
             // Extract case type (always "Service Request" if SRType label exists)
             const caseType = "Service Request";
             
-            // Extract catalog item (Ex: "Normal Change/Normal Change Requests" -> "Normal Change Requests")
+            // Extract catalog item (Ex: "Normal Change/Generic Requests" -> "Generic Requests")
             const catalogItem = catalogLabel.split("/")[1];
             
-            // Extract catalog prefix (Ex: "Normal Change/Normal Change Requests" -> "Normal Change")
+            // Extract catalog prefix (Ex: "Normal Change/Generic Requests" -> "Normal Change")
             const catalogPrefix = catalogLabel.split("/")[0];
             
             console.log(`Extracted SR Type: ${srType}`);
@@ -154,7 +154,7 @@ jobs:
             // ----------------------
             const rulesets = {
               // Normal Change templates
-              "Normal Change/Normal Change Requests": {
+              "Normal Change/Generic Requests": {
                 requiredFields: [
                   "Short Description",
                   "Description",
@@ -211,7 +211,7 @@ jobs:
             };
 
             // Validate that SRType matches catalog prefix
-            // Ex: "SRType/Normal Change" should match "Normal Change/Normal Change Requests"
+            // Ex: "SRType/Normal Change" should match "Normal Change/Generic Requests"
             if (srType !== catalogPrefix) {
               const comment = `## ❌ Template Validation Failed
               
@@ -220,7 +220,7 @@ jobs:
               - Catalog label: \`${catalogLabel}\` (Prefix: **${catalogPrefix}**)
               
               The SRType and catalog prefix must match. For example:
-              - \`SRType/Normal Change\` should be paired with \`Normal Change/Normal Change Requests\`
+              - \`SRType/Normal Change\` should be paired with \`Normal Change/Generic Requests\`
               - \`SRType/Emergency Change\` should be paired with \`Emergency Change/Request Logs\`
               
               The labels have been removed. Please apply matching labels.`;

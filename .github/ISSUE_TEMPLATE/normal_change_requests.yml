@@ -3,7 +3,7 @@
 name: Service Request-Normal Change 
 description: Request a normal change service related to the project
 title: "[SR-Change]: "                                     # Auto prefills the issue title 
-labels: ["SRType/Normal Change", "Normal Change/Normal Change Requests"]   # Auto adds these labels
+labels: ["SRType/Normal Change", "Normal Change/Generic Requests"]   # Auto adds these labels
 
 body:
   # Short Description (textarea)

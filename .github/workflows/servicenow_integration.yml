@@ -50,6 +50,7 @@ jobs:
             console.log(`✅ Case Type: ${case_type}`);
             console.log(`✅ SR Type: ${sr_type}`);
 
+            // Set outputs for later steps
             core.setOutput('issue_number', issue_number.toString());
             core.setOutput('catalog_item', catalog_item || 'General Requests');
             core.setOutput('case_type', case_type || 'Service Request');
@@ -63,7 +64,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const issue_number = '${{ steps.get_issue.outputs.issue_number }}'; //Gets the issue number from the previous step
+            const issue_number = '${{ steps.get_issue.outputs.is  SERVICENOW_PROJECT: "Customer Portal..."sue_number }}'; //Gets the issue number from the previous step
             
             
             const { data: issue } = await github.rest.issues.get({ //Calls github API to fetch issue details
@@ -116,8 +117,8 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const body = `${{ steps.get_issue_details.outputs.issue_body }}`; //Gets the issue description text
-            
+            const body = `${{ steps.get_issue_details.outputs.issue_body }}`; //Gets the issue body and extracts fields
+
             console.log('Fully dynamic field extractor');
             console.log('Issue body length:', body.length);
             
@@ -349,7 +350,7 @@ jobs:
         run: |
           # POST the payload to ServiceNow API and capture the response
 
-          # Reads servicenow URL and credentials from secrets (never hardcoded)
+          # Reads servicenow URL and credentials from secrets  
           SERVICENOW_URL="${{ secrets.SERVICENOW_URL }}"
           
           # for API calls from GitHub Actions
