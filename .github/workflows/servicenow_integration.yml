@@ -64,7 +64,7 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const issue_number = '${{ steps.get_issue.outputs.is  SERVICENOW_PROJECT: "Customer Portal..."sue_number }}'; //Gets the issue number from the previous step
+            const issue_number = '${{ steps.get_issue.outputs.issue_number }}'; //Gets the issue number from the previous step
             
             
             const { data: issue } = await github.rest.issues.get({ //Calls github API to fetch issue details
