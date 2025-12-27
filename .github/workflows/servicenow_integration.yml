@@ -416,125 +416,125 @@ jobs:
           fi
 
      
-      # Query Change Requests Linked to This Case
+      # # Query Change Requests Linked to This Case
        
-      - name: Debug - Check Case Info
-        if: success()
-        run: |
-          #Print the case info and whole response
-          echo "=== DEBUG: Checking Case Information ==="
-          echo "Case Number: ${{ steps.send_servicenow.outputs.case_number }}"
-          echo "Case Sys ID: ${{ steps.send_servicenow.outputs.case_sys_id }}"
-          echo ""
-          echo "Full response.json:"
-          cat response.json | jq '.'
-          echo ""
+      # - name: Debug - Check Case Info
+      #   if: success()
+      #   run: |
+      #     #Print the case info and whole response
+      #     echo "=== DEBUG: Checking Case Information ==="
+      #     echo "Case Number: ${{ steps.send_servicenow.outputs.case_number }}"
+      #     echo "Case Sys ID: ${{ steps.send_servicenow.outputs.case_sys_id }}"
+      #     echo ""
+      #     echo "Full response.json:"
+      #     cat response.json | jq '.'
+      #     echo ""
 
-          #confirm extraction of sys_id
-          echo "Attempting to extract sys_id..."
-          cat response.json | jq -r '.result.sys_id // .sys_id // .result.case_sys_id // .case_sys_id // "NOT_FOUND"'
+      #     #confirm extraction of sys_id
+      #     echo "Attempting to extract sys_id..."
+      #     cat response.json | jq -r '.result.sys_id // .sys_id // .result.case_sys_id // .case_sys_id // "NOT_FOUND"'
       
-      #Find any Change Requests (CRs) linked to the created case and format them for a GitHub comment
-      - name: Query Change Requests for Case
-        if: success() && steps.send_servicenow.outputs.case_number != ''
-        id: query_crs
-        run: |
-          #reads case number and sys_id from previous step
-          CASE_NUMBER="${{ steps.send_servicenow.outputs.case_number }}"
-          CASE_SYS_ID="${{ steps.send_servicenow.outputs.case_sys_id }}"
+      # #Find any Change Requests (CRs) linked to the created case and format them for a GitHub comment
+      # - name: Query Change Requests for Case
+      #   if: success() && steps.send_servicenow.outputs.case_number != ''
+      #   id: query_crs
+      #   run: |
+      #     #reads case number and sys_id from previous step
+      #     CASE_NUMBER="${{ steps.send_servicenow.outputs.case_number }}"
+      #     CASE_SYS_ID="${{ steps.send_servicenow.outputs.case_sys_id }}"
           
-          # Builds a ServiceNow base URL from the REST URL secret  
-          SERVICENOW_CUSTOM_URL="${{ secrets.SERVICENOW_URL }}"
-          SERVICENOW_BASE_URL=$(echo "$SERVICENOW_CUSTOM_URL" | sed 's|/api/.*||')
+      #     # Builds a ServiceNow base URL from the REST URL secret  
+      #     SERVICENOW_CUSTOM_URL="${{ secrets.SERVICENOW_URL }}"
+      #     SERVICENOW_BASE_URL=$(echo "$SERVICENOW_CUSTOM_URL" | sed 's|/api/.*||')
           
-          SERVICENOW_USERNAME="${{ secrets.SERVICENOW_USERNAME }}"
-          SERVICENOW_PASSWORD="${{ secrets.SERVICENOW_PASSWORD }}"
-          SERVICENOW_UI_URL="${{ secrets.SERVICENOW_UI_URL }}"
+      #     SERVICENOW_USERNAME="${{ secrets.SERVICENOW_USERNAME }}"
+      #     SERVICENOW_PASSWORD="${{ secrets.SERVICENOW_PASSWORD }}"
+      #     SERVICENOW_UI_URL="${{ secrets.SERVICENOW_UI_URL }}"
           
-          echo "  Querying Change Requests for Case"
-          echo "   Case Number: ${CASE_NUMBER}"
-          echo "   Case Sys ID: ${CASE_SYS_ID}"
+      #     echo "  Querying Change Requests for Case"
+      #     echo "   Case Number: ${CASE_NUMBER}"
+      #     echo "   Case Sys ID: ${CASE_SYS_ID}"
           
-          # Validate required variables
-          if [ -z "$CASE_SYS_ID" ] || [ "$CASE_SYS_ID" = "null" ]; then
-            echo " Case sys_id not available, cannot query CRs"
-            echo "cr_count=0" >> $GITHUB_OUTPUT
-            exit 0
-          fi
+      #     # Validate required variables
+      #     if [ -z "$CASE_SYS_ID" ] || [ "$CASE_SYS_ID" = "null" ]; then
+      #       echo " Case sys_id not available, cannot query CRs"
+      #       echo "cr_count=0" >> $GITHUB_OUTPUT
+      #       exit 0
+      #     fi
           
-          # Add delay to avoid rate limiting
-          sleep 2
+      #     # Add delay to avoid rate limiting
+      #     sleep 2
           
-          # Query the TASK table with sys_class_name filter
+      #     # Query the TASK table with sys_class_name filter
            
-          #Builds a query URL to the ServiceNow endpoint to get all change requests linked to the case
-          QUERY_URL="${SERVICENOW_BASE_URL}/api/now/table/task?sysparm_query=parent=${CASE_SYS_ID}^sys_class_name=change_request&sysparm_fields=number,state,sys_id&sysparm_display_value=true&sysparm_limit=50"
+      #     #Builds a query URL to the ServiceNow endpoint to get all change requests linked to the case
+      #     QUERY_URL="${SERVICENOW_BASE_URL}/api/now/table/task?sysparm_query=parent=${CASE_SYS_ID}^sys_class_name=change_request&sysparm_fields=number,state,sys_id&sysparm_display_value=true&sysparm_limit=50"
           
-          echo "   Querying task table for change requests..."
+      #     echo "   Querying task table for change requests..."
           
-          # Execute curl to get CRs, capture HTTP status
-          HTTP_CODE=$(curl -s -w "%{http_code}" \
-            -u "${SERVICENOW_USERNAME}:${SERVICENOW_PASSWORD}" \
-            -H "Accept: application/json" \
-            -H "Content-Type: application/json" \
-            -H "User-Agent: GitHub-Actions-WSO2/1.0" \
-            -o crs.json \
-            "$QUERY_URL")
+      #     # Execute curl to get CRs, capture HTTP status
+      #     HTTP_CODE=$(curl -s -w "%{http_code}" \
+      #       -u "${SERVICENOW_USERNAME}:${SERVICENOW_PASSWORD}" \
+      #       -H "Accept: application/json" \
+      #       -H "Content-Type: application/json" \
+      #       -H "User-Agent: GitHub-Actions-WSO2/1.0" \
+      #       -o crs.json \
+      #       "$QUERY_URL")
           
-          echo "   HTTP Response Code: $HTTP_CODE"
+      #     echo "   HTTP Response Code: $HTTP_CODE"
           
-          if [ "$HTTP_CODE" != "200" ]; then
-            echo "  Unable to query CRs (HTTP $HTTP_CODE)"
-            echo "   Response:"
-            cat crs.json 2>/dev/null || echo "No response"
-            echo ""Extract base URL from custom REST API URL
-            echo "cr_count=0" >> $GITHUB_OUTPUT
-            exit 0
-          fi
+      #     if [ "$HTTP_CODE" != "200" ]; then
+      #       echo "  Unable to query CRs (HTTP $HTTP_CODE)"
+      #       echo "   Response:"
+      #       cat crs.json 2>/dev/null || echo "No response"
+      #       echo ""Extract base URL from custom REST API URL
+      #       echo "cr_count=0" >> $GITHUB_OUTPUT
+      #       exit 0
+      #     fi
           
-          # Check if we got valid JSON
-          if ! cat crs.json | jq empty 2>/dev/null; then
-            echo "❌ Invalid JSON response"
-            cat crs.json
-            echo "cr_count=0" >> $GITHUB_OUTPUT
-            exit 0
-          fi
+      #     # Check if we got valid JSON
+      #     if ! cat crs.json | jq empty 2>/dev/null; then
+      #       echo "❌ Invalid JSON response"
+      #       cat crs.json
+      #       echo "cr_count=0" >> $GITHUB_OUTPUT
+      #       exit 0
+      #     fi
           
-          # Parse CR results
-          CR_COUNT=$(cat crs.json | jq -r '.result | length' 2>/dev/null || echo "0")
+      #     # Parse CR results
+      #     CR_COUNT=$(cat crs.json | jq -r '.result | length' 2>/dev/null || echo "0")
           
-          if ! [[ "$CR_COUNT" =~ ^[0-9]+$ ]]; then
-            echo "  Invalid CR count: $CR_COUNT"
-            echo "   Full response:"
-            cat crs.json | jq '.'
-            CR_COUNT=0
-          fi
+      #     if ! [[ "$CR_COUNT" =~ ^[0-9]+$ ]]; then
+      #       echo "  Invalid CR count: $CR_COUNT"
+      #       echo "   Full response:"
+      #       cat crs.json | jq '.'
+      #       CR_COUNT=0
+      #     fi
           
-          echo "✅ Found $CR_COUNT Change Request(s)"
+      #     echo "✅ Found $CR_COUNT Change Request(s)"
           
-          if [ "$CR_COUNT" -gt 0 ]; then
-            echo ""
-            echo "Change Requests:"
-            cat crs.json | jq -r '.result[] | "  - \(.number): \(.state // "Unknown")"'
+      #     if [ "$CR_COUNT" -gt 0 ]; then
+      #       echo ""
+      #       echo "Change Requests:"
+      #       cat crs.json | jq -r '.result[] | "  - \(.number): \(.state // "Unknown")"'
             
-           # Format CR list: [CHG0038282](url) - New
-            CR_LIST=$(cat crs.json | jq -r --arg base_url "$SERVICENOW_UI_URL" '
-              .result[] | 
-              "- [**" + .number + "**](" + $base_url + "/now/nav/ui/classic/params/target/change_request.do?sys_id=" + .sys_id + "&sysparm_view=Change_Request) - " + (.state // "Unknown")
-            ' 2>/dev/null || echo "- Error formatting CR list")
+      #      # Format CR list: [CHG0038282](url) - New
+      #       CR_LIST=$(cat crs.json | jq -r --arg base_url "$SERVICENOW_UI_URL" '
+      #         .result[] | 
+      #         "- [**" + .number + "**](" + $base_url + "/now/nav/ui/classic/params/target/change_request.do?sys_id=" + .sys_id + "&sysparm_view=Change_Request) - " + (.state // "Unknown")
+      #       ' 2>/dev/null || echo "- Error formatting CR list")
             
-            echo "cr_count=$CR_COUNT" >> $GITHUB_OUTPUT
-            echo "cr_list<<EOF" >> $GITHUB_OUTPUT
-            echo "$CR_LIST" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
+      #       echo "cr_count=$CR_COUNT" >> $GITHUB_OUTPUT
+      #       echo "cr_list<<EOF" >> $GITHUB_OUTPUT
+      #       echo "$CR_LIST" >> $GITHUB_OUTPUT
+      #       echo "EOF" >> $GITHUB_OUTPUT
             
-            echo ""
-            echo "Formatted list for GitHub comment:"
-            echo "$CR_LIST"
-          else
-            echo "   No CRs linked to this case yet"
-            echo "cr_count=0" >> $GITHUB_OUTPUT
-          fi
+      #       echo ""
+      #       echo "Formatted list for GitHub comment:"
+      #       echo "$CR_LIST"
+      #     else
+      #       echo "   No CRs linked to this case yet"
+      #       echo "cr_count=0" >> $GITHUB_OUTPUT
+      #     fi
 
       #Post a comment on the GitHub issue to say the ServiceNow case was created and include details
       - name: Comment on Issue - Success
@@ -586,24 +586,24 @@ jobs:
               ? `[${caseNumber}](${caseUrl})` 
               : `\`${caseNumber}\``;
             
-              //  Add CR information
-            const crCount = '${{ steps.query_crs.outputs.cr_count }}' || '0';
-            const crList = `${{ steps.query_crs.outputs.cr_list }}` || '';
+            #   //  Add CR information
+            # const crCount = '${{ steps.query_crs.outputs.cr_count }}' || '0';
+            # const crList = `${{ steps.query_crs.outputs.cr_list }}` || '';
             
-            let crSection = '';
-            if (parseInt(crCount) > 0) {
-              crSection = `
+            # let crSection = '';
+            # if (parseInt(crCount) > 0) {
+            #   crSection = `
 
-            ### Associated Change Requests (${crCount})
-            ${crList}
-            `;
-            } else {
-              crSection = `
+            # ### Associated Change Requests (${crCount})
+            # ${crList}
+            # `;
+            # } else {
+            #   crSection = `
 
-            ### Associated Change Requests
-            *No change requests linked to this case yet.*
-            `;
-            }
+            # ### Associated Change Requests
+            # *No change requests linked to this case yet.*
+            # `;
+            # }
             
             const commentBody = `## ✅ ServiceNow Case Created Successfully
 

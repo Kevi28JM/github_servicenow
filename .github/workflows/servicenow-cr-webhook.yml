@@ -28,6 +28,8 @@ jobs:
             const githubIssueNumber = payload.github_issue_number;
             const action = payload.action;
             const previousState = payload.previous_state;
+            const isFirstCR = payload.is_first_cr;
+            const totalCRs = payload.total_crs || 1;
             
             if (!githubIssueNumber || !crNumber) {
               console.log('Missing required data in webhook');
@@ -38,123 +40,100 @@ jobs:
             //build the clickable URL for the CR
             const crUrl = `${servicenowUiUrl}/now/nav/ui/classic/params/target/change_request.do?sys_id=${crSysId}`;
             
-            // Find the original servicenow case comment
-            // List comments on the GitHub issue
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: parseInt(githubIssueNumber)
-            });
-
-            // Find the comment that indicates the ServiceNow case was created 
-            const caseComment = comments.find(c => 
-              c.user.type === 'Bot' && 
-              c.body.includes('ServiceNow Case Created Successfully') &&
-              c.body.includes(caseNumber)
-            );
-            
-            // If can't find the original comment, create a new one
-            if (!caseComment) {
-              console.log('Could not find original case comment - creating new comment instead');
-  
-              let commentBody = '';
-              if (action === 'created') {
-                commentBody = `## New Change Request Created\n\n- [${crNumber}](${crUrl}) - ${crState}\n\n*Automatically notified by ServiceNow*`;
-              } else if (action === 'state_changed') {
-                commentBody = `## Change Request State Updated\n\n[${crNumber}](${crUrl}): ${previousState} → **${crState}**\n\n*Automatically notified by ServiceNow*`;
+            // ============================================
+            // HANDLE CR CREATION - ALWAYS CREATE NEW COMMENT
+            // ============================================
+            if (action === 'created') {
+              console.log('Creating new comment for CR creation');
+              
+              // Query ServiceNow for all CRs to show in the comment
+              const servicenowCustomUrl = '${{ secrets.SERVICENOW_URL }}';
+              const servicenowBaseUrl = servicenowCustomUrl.replace(/\/api\/.*/, '');
+              const servicenowUsername = '${{ secrets.SERVICENOW_USERNAME }}';
+              const servicenowPassword = '${{ secrets.SERVICENOW_PASSWORD }}';
+              
+              const auth = Buffer.from(`${servicenowUsername}:${servicenowPassword}`).toString('base64');
+              
+              const queryUrl = `${servicenowBaseUrl}/api/now/table/task?sysparm_query=parent=${caseSysId}^sys_class_name=change_request&sysparm_fields=number,state,sys_id&sysparm_display_value=true&sysparm_limit=50`;
+              
+              console.log('Querying ServiceNow for all CRs...');
+              const response = await fetch(queryUrl, {
+                headers: {
+                  'Authorization': `Basic ${auth}`,
+                  'Accept': 'application/json'
+                }
+              });
+              
+              let allCRs = [];
+              if (response.ok) {
+                const data = await response.json();
+                allCRs = data.result || [];
+                console.log(`Found ${allCRs.length} total CRs`);
+              } else {
+                console.log(`Failed to query ServiceNow: ${response.status}`);
+                // Fallback to just the current CR if query fails
+                allCRs = [{
+                  number: crNumber,
+                  sys_id: crSysId,
+                  state: crState
+                }];
               }
+              
+              // Build CR list for the comment
+              let crListMarkdown = '';
+              if (allCRs.length > 0) {
+                crListMarkdown = allCRs.map(cr => 
+                  `- [${cr.number}](${servicenowUiUrl}/now/nav/ui/classic/params/target/change_request.do?sys_id=${cr.sys_id}) - ${cr.state || 'Unknown'}`
+                ).join('\n');
+              } else {
+                crListMarkdown = `- [${crNumber}](${crUrl}) - ${crState}`;
+              }
+              
+              // Create new comment
+              const newCommentBody = `## New Change Request Created
+
+            **CR Number:** [${crNumber}](${crUrl})
+            **State:** ${crState}
+            **Short Description:** ${crShortDescription}
+            **Assigned To:** ${crAssignedTo}
+            **Priority:** ${crPriority}
+
+            ### All Change Requests for this Case (${allCRs.length})
+            ${crListMarkdown}
+
+            ---
+            *Automatically notified by ServiceNow*`;
               
               await github.rest.issues.createComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: parseInt(githubIssueNumber),
-                body: commentBody
+                body: newCommentBody
               });
-              return;
+              
+              console.log(`Created new comment for CR ${crNumber}`);
             }
             
-            // Re-query ServiceNow to get ALL CRs for this case
-            const servicenowCustomUrl = '${{ secrets.SERVICENOW_URL }}';
-            const servicenowBaseUrl = servicenowCustomUrl.replace(/\/api\/.*/, '');
-            const servicenowUsername = '${{ secrets.SERVICENOW_USERNAME }}';
-            const servicenowPassword = '${{ secrets.SERVICENOW_PASSWORD }}';
-            
-            // Basic Auth header
-            const auth = Buffer.from(`${servicenowUsername}:${servicenowPassword}`).toString('base64');
-            
-            // Query servicenow for all CRs linked to this case
-            const queryUrl = `${servicenowBaseUrl}/api/now/table/task?sysparm_query=parent=${caseSysId}^sys_class_name=change_request&sysparm_fields=number,state,sys_id&sysparm_display_value=true&sysparm_limit=50`;
-            
-            console.log('Querying ServiceNow for all CRs...');
-            // Fetch CRs
-            const response = await fetch(queryUrl, {
-              headers: {
-                'Authorization': `Basic ${auth}`,
-                'Accept': 'application/json'
-              }
-            });
-            
-            if (!response.ok) {
-              console.log(`Failed to query ServiceNow: ${response.status}`);
-              return;
+            // ============================================
+            // HANDLE STATE CHANGES - CREATE NEW COMMENT
+            // ============================================
+            else if (action === 'state_changed') {
+              console.log('Creating new comment for CR state change');
+              
+              const stateChangeComment = `## Change Request State Updated
+
+            **CR Number:** [${crNumber}](${crUrl})
+            **State Change:** ${previousState} → **${crState}**
+
+            ---
+            *Automatically notified by ServiceNow*`;
+              
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: parseInt(githubIssueNumber),
+                body: stateChangeComment
+              });
+              
+              console.log(`Created new comment for CR ${crNumber} state change`);
             }
-            
-            
-            const data = await response.json();
-            // Extract CRs
-            const allCRs = data.result || [];
-            
-            console.log(`Found ${allCRs.length} total CRs`);
-            
-            // Build updated CR list
-            let crListMarkdown = '';
-            if (allCRs.length > 0) {
-            // Format each CR as a markdown link with state
-              crListMarkdown = allCRs.map(cr => 
-                `- [${cr.number}](${servicenowUiUrl}/now/nav/ui/classic/params/target/change_request.do?sys_id=${cr.sys_id}) - ${cr.state || 'Unknown'}`
-              ).join('\n');
-            } else {
-              crListMarkdown = '*No change requests linked to this case yet.*';
-            }
-            
-            // Extract the parts of the original comment
-            const originalBody = caseComment.body;
-            
-            // Find the CR section and replace it
-            const crSectionRegex = /### Associated Change Requests.*?(?=\n###|\n---|\*Automated via|$)/s;
-            
-            let newCrSection = `### Associated Change Requests (${allCRs.length})
-            ${crListMarkdown}`;
-            
-            // Add notification of what changed
-            if (action === 'created') {
-              newCrSection += `\n\n*New CR created: ${crNumber}*`;
-            } else if (action === 'state_changed') {
-              newCrSection += `\n\n*CR ${crNumber} state changed: ${previousState} → ${crState}*`;
-            }
-            
-            let updatedBody;
-            if (crSectionRegex.test(originalBody)) {
-              // Replace existing CR section
-              updatedBody = originalBody.replace(crSectionRegex, newCrSection);
-            } else {
-              // Add CR section before the separator line
-              const separatorIndex = originalBody.indexOf('---');
-              if (separatorIndex > -1) {
-                updatedBody = originalBody.slice(0, separatorIndex) + 
-                             '\n' + newCrSection + '\n\n' + 
-                             originalBody.slice(separatorIndex);
-              } else {
-                updatedBody = originalBody + '\n\n' + newCrSection;
-              }
-            }
-            
-            // Update the comment
-            await github.rest.issues.updateComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              comment_id: caseComment.id,
-              body: updatedBody
-            });
-            
-            console.log(`✅ Updated original comment with ${allCRs.length} CRs`);
