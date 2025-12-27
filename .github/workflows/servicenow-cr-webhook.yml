@@ -94,9 +94,6 @@ jobs:
 
             **CR Number:** [${crNumber}](${crUrl})
             **State:** ${crState}
-            **Short Description:** ${crShortDescription}
-            **Assigned To:** ${crAssignedTo}
-            **Priority:** ${crPriority}
 
             ### All Change Requests for this Case (${allCRs.length})
             ${crListMarkdown}
