@@ -23,6 +23,7 @@ jobs:
             const crNumber = payload.cr_number;
             const crSysId = payload.cr_sys_id;
             const crState = payload.cr_state;
+            const crEnvironment = payload.cr_environment || 'Not specified';
             const caseNumber = payload.case_number;
             const caseSysId = payload.case_sys_id;
             const githubIssueNumber = payload.github_issue_number;
@@ -94,6 +95,7 @@ jobs:
 
             **CR Number:** [${crNumber}](${crUrl})
             **State:** ${crState}
+            **Environment:** ${crEnvironment}
 
             ### All Change Requests for this Case (${allCRs.length})
             ${crListMarkdown}
