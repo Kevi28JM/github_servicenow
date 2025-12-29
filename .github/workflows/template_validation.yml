@@ -44,7 +44,7 @@ jobs:
             const catalogLabel = labels.find(l => l.startsWith("CatalogueItem/"));
             
             // ----------------------
-            // FIRST: Check if this is a Service Request template
+            // Check if this is a Service Request template
             // ----------------------
             const validMarkers = [
               "SR Generic",
@@ -86,13 +86,11 @@ jobs:
                     issue_number: issue.number,
                     body: `## ❌ Template Validation Failed
 
-            **Invalid Template for Service Request Labels:**
+            **Invalid Template for Service Request Labels**
 
             Cannot use **SRType/** or **CatalogueItem/** labels on this issue because it was not created using a Service Request template.
 
-            **Labels detected:** ${labelsToRemove.join(", ")}
-
-            These labels have been removed. If you need to create a Service Request, please use one of the official Service Request templates from the "New Issue" button.`
+            These labels have been removed. If you need to create a Service Request, please use one of the official Service Request templates.`
                   });
                   
                   // Remove the SR labels from non SR template
