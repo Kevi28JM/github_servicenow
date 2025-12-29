@@ -55,9 +55,7 @@ jobs:
 
             Please add both required labels:
             - **SRType/** label (e.g., \`SRType/Normal Change\`, \`SRType/Emergency Change\`)
-            - **CatalogueItem/** label (e.g., \`CatalogueItem/Generic Requests\`)
-
-            Validation will run automatically once both labels are added.`;
+            - **CatalogueItem/** label (e.g., \`CatalogueItem/Generic Requests\`)`;
               } else if (!srTypeLabel) {
                 console.log("Missing SRType/ label - waiting for it");
                 failureMessage = `## ❌ Template Validation Failed
@@ -66,9 +64,7 @@ jobs:
 
             You've added: **${catalogLabel}**
 
-            Please also add an **SRType/** label (e.g., \`SRType/Normal Change\`)
-
-            Validation will run automatically once both labels are added.`;
+            Please also add an **SRType/** label (e.g., \`SRType/Normal Change\`)`;
               } else if (!catalogLabel) {
                 console.log("Missing CatalogueItem/ label - waiting for it");
                 failureMessage = `## ❌ Template Validation Failed
