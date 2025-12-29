@@ -43,7 +43,7 @@ jobs:
           
             const catalogLabel = labels.find(l => l.startsWith("CatalogueItem/"));
             
-            / ----------------------
+            // ----------------------
             // FIRST: Check if this is a Service Request template
             // ----------------------
             const validMarkers = [
