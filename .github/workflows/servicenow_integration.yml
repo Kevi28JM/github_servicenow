@@ -45,10 +45,10 @@ jobs:
               return;
             }
             
-            console.log(`✅ Got issue number from dispatch: #${issue_number}`);
-            console.log(`✅ Catalog Item: ${catalog_item}`);
-            console.log(`✅ Case Type: ${case_type}`);
-            console.log(`✅ SR Type: ${sr_type}`);
+            console.log(`Got issue number from dispatch: #${issue_number}`);
+            console.log(`Catalog Item: ${catalog_item}`);
+            console.log(`Case Type: ${case_type}`);
+            console.log(`SR Type: ${sr_type}`);
 
             // Set outputs for later steps
             core.setOutput('issue_number', issue_number.toString());

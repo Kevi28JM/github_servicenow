@@ -40,13 +40,8 @@ jobs:
 
             //Dynamically find SRType and catalog labels
             const srTypeLabel = labels.find(l => l.startsWith("SRType/"));
-            
-            // Find any label with "/" that's not SRType (this is the catalog label)
-            const catalogLabel = labels.find(l => 
-              l.includes("/") && 
-              !l.startsWith("SRType/") && 
-              !l.startsWith("Type/")
-            );
+          
+            const catalogLabel = labels.find(l => l.startsWith("CatalogueItem/"));
             
             // Skip if we don't have both labels yet
             if (!srTypeLabel || !catalogLabel) {
@@ -88,16 +83,12 @@ jobs:
             // Extract case type (always "Service Request" if SRType label exists)
             const caseType = "Service Request";
             
-            // Extract catalog item (Ex: "Normal Change/Generic Requests" -> "Generic Requests")
-            const catalogItem = catalogLabel.split("/")[1];
-            
-            // Extract catalog prefix (Ex: "Normal Change/Generic Requests" -> "Normal Change")
-            const catalogPrefix = catalogLabel.split("/")[0];
+            // Extract catalog item (Ex: " CatalogueItem/Generic Requests" -> "Generic Requests")
+            const catalogItem = catalogLabel.replace("CatalogueItem/", "");
             
             console.log(`Extracted SR Type: ${srType}`);
             console.log(`Extracted Case Type: ${caseType}`);
             console.log(`Extracted Catalog Item: ${catalogItem}`);
-            console.log(`Extracted Catalog Prefix: ${catalogPrefix}`);
 
             // ----------------------
             // Reusable fail function
@@ -129,7 +120,7 @@ jobs:
               // Remove both SRType/ and catalog labels
               const relatedLabels = [
                 ...labels.filter(l => l.startsWith("SRType/")),
-                ...labels.filter(l => l.includes("/") && !l.startsWith("SRType/") && !l.startsWith("Type/"))
+                ...labels.filter(l => l.startsWith("CatalogueItem/"))
               ];
 
               for (const lbl of relatedLabels) {
@@ -154,7 +145,7 @@ jobs:
             // ----------------------
             const rulesets = {
               // Normal Change templates
-              "Normal Change/Generic Requests": {
+              "CatalogueItem/Generic Requests": {
                 requiredFields: [
                   "Short Description",
                   "Description",
@@ -174,7 +165,7 @@ jobs:
               },
               
               // Emergency Change templates
-              "Emergency Change/Request Logs": {
+              "CatalogueItem/Request Logs": {
                 requiredFields: [
                   "Short Description",
                   "Description",
@@ -190,7 +181,7 @@ jobs:
               },
               
               // Standard Change templates
-              "Standard Change/Generic": {
+              "CatalogueItem/Standard Generic": {
                 requiredFields: [
                   "Short Description",
                   "Description",
@@ -201,7 +192,7 @@ jobs:
               },
               
               // Add more catalog combinations as needed
-              "Normal Change/Information": {
+              "CatalogueItem/Information": {
                 requiredFields: [
                   "Request Description",
                   "Impact",
@@ -209,24 +200,6 @@ jobs:
                 ]
               }
             };
-
-            // Validate that SRType matches catalog prefix
-            // Ex: "SRType/Normal Change" should match "Normal Change/Generic Requests"
-            if (srType !== catalogPrefix) {
-              const comment = `## ❌ Template Validation Failed
-              
-              **Label Mismatch Detected:**
-              - SRType label: \`${srTypeLabel}\` (Type: **${srType}**)
-              - Catalog label: \`${catalogLabel}\` (Prefix: **${catalogPrefix}**)
-              
-              The SRType and catalog prefix must match. For example:
-              - \`SRType/Normal Change\` should be paired with \`Normal Change/Generic Requests\`
-              - \`SRType/Emergency Change\` should be paired with \`Emergency Change/Request Logs\`
-              
-              The labels have been removed. Please apply matching labels.`;
-              await failValidation(comment);
-              return;
-            }
 
             
             // Step 3: Check title format
