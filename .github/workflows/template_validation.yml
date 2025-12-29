@@ -43,27 +43,96 @@ jobs:
           
             const catalogLabel = labels.find(l => l.startsWith("CatalogueItem/"));
             
-            // Skip if don't have both labels yet
+             // Skip if we don't have both labels yet
             if (!srTypeLabel || !catalogLabel) {
+              let failureMessage = "";
+              
               if (!srTypeLabel && !catalogLabel) {
-                console.log(" Neither label present - skipping validation");
-              } else if (!srTypeLabel) {
-                console.log(" Missing SRType/ label - waiting for it");
-              } else if (!catalogLabel) {
-                console.log(" Missing catalog label (Ex: Normal Change/Generic Requests) - waiting for it");
-              }
+                console.log("Neither label present - skipping validation");
+                failureMessage = `## ❌ Template Validation Failed
 
-              await github.rest.issues.createComment({
+            **Missing Required Labels:**
+
+            Please add both required labels:
+            - **SRType/** label (e.g., \`SRType/Normal Change\`, \`SRType/Emergency Change\`)
+            - **CatalogueItem/** label (e.g., \`CatalogueItem/Generic Requests\`)
+
+            Validation will run automatically once both labels are added.`;
+              } else if (!srTypeLabel) {
+                console.log("Missing SRType/ label - waiting for it");
+                failureMessage = `## ❌ Template Validation Failed
+
+            **Missing SRType Label:**
+
+            You've added: **${catalogLabel}**
+
+            Please also add an **SRType/** label (e.g., \`SRType/Normal Change\`, \`SRType/Emergency Change\`, \`SRType/Standard Change\`)
+
+            Validation will run automatically once both labels are added.`;
+              } else if (!catalogLabel) {
+                console.log("Missing CatalogueItem/ label - waiting for it");
+                failureMessage = `## ❌ Template Validation Failed
+
+            **Missing CatalogueItem Label:**
+
+            You've added: **${srTypeLabel}**
+
+            Please also add a **CatalogueItem/** label (e.g., \`CatalogueItem/Generic Requests\`, \`CatalogueItem/Request Logs\`)
+
+            Validation will run automatically once both labels are added.`;
+              }
+              
+              // Check if we already posted this type of failure message
+              const { data: existingComments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+              });
+              
+              const hasFailureComment = existingComments.some(c => 
+                c.user.type === "Bot" && 
+                c.body.includes("❌ Template Validation Failed") &&
+                (c.body.includes("Missing Required Labels") || 
+                c.body.includes("Missing SRType Label") || 
+                c.body.includes("Missing CatalogueItem Label"))
+              );
+              
+              // Only post if we haven't already
+              if (!hasFailureComment) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                  body: failureMessage
+                });
+              }
+              
+              return;
+            }
+
+            // When both labels are present, delete the missing label failure comment
+            const { data: existingComments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issue.number,
-              body: `## ⏳ Waiting for Labels\n\nPlease add both required labels:\n- **SRType/** \n- **CatalogueItem/** \n\nValidation will run automatically once both labels are added.`
             });
-              return;
+
+            for (const c of existingComments) {
+              if (c.user.type === "Bot" && 
+                  c.body.includes("❌ Template Validation Failed") &&
+                  (c.body.includes("Missing Required Labels") || 
+                  c.body.includes("Missing SRType Label") || 
+                  c.body.includes("Missing CatalogueItem Label"))) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: c.id,
+                });
+              }
             }
-            
+
             // Check if already validated to prevent duplicate runs
-            const { data: existingComments } = await github.rest.issues.listComments({
+            const { data: existingComments2 } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: issue.number,
