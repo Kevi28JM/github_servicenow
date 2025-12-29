@@ -43,6 +43,26 @@ jobs:
           
             const catalogLabel = labels.find(l => l.startsWith("CatalogueItem/"));
             
+            / ----------------------
+            // FIRST: Check if this is a Service Request template
+            // ----------------------
+            const validMarkers = [
+              "SR Generic",
+              "SR Request Logs",
+              "SR Standard Generic",
+              "SR Information"
+            ];
+
+            const hasValidMarker = validMarkers.some(marker => issueBody.includes(marker));
+
+            // If no SR template marker, this is NOT a service request - skip validation entirely
+            if (!hasValidMarker) {
+              console.log("⏭️ Not a Service Request template - skipping validation");
+              return;
+            }
+
+            console.log("✅ Service Request template detected - proceeding with validation");
+
              // Skip if we don't have both labels yet
             if (!srTypeLabel || !catalogLabel) {
               let failureMessage = "";
@@ -148,36 +168,7 @@ jobs:
             console.log("✅ Proceeding with validation - triggered by:", labelName);
             console.log(`✅ Both labels present. SRType: ${srTypeLabel}, Catalog: ${catalogLabel}`);
 
-            // ----------------------
-            // Step 1: Check for template marker
-            // ----------------------
-            const validMarkers = [
-              "SR Generic",
-              "SR Request Logs",
-              "SR Standard Generic",
-              "SR Information"
-              // Add more markers for each of your templates
-            ];
-
-            const hasValidMarker = validMarkers.some(marker => issueBody.includes(marker));
-
-            if (!hasValidMarker) {
-              const comment = `## ❌ Template Validation Failed
-              
-              **Invalid Template Detected:**
-              
-              This issue was not created using an official Service Request template, or the template marker was removed/modified.
-              
-              Please recreate this issue using one of the official templates and do not modify the "Template Marker" field.
-              
-              The labels have been removed.`;
-              await failValidation(comment);
-              return;
-            }
-
-            console.log("✅ Valid template marker found");
-
-
+            
             // Extract values dynamically from labels
             // Extract SR Type (Ex: "SRType/Normal Change" -> "Normal Change")
             const srType = srTypeLabel.replace("SRType/", "");
