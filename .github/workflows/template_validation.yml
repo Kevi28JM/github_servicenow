@@ -294,7 +294,6 @@ jobs:
             core.setOutput('sr_type', srType);
             core.setOutput('case_type', caseType);
             core.setOutput('catalog_item', catalogItem);
-            core.setOutput('catalog_prefix', catalogPrefix);
 
 
       # Trigger ServiceNow workflow
