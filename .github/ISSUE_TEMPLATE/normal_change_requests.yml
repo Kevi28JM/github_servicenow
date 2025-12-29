@@ -6,6 +6,17 @@ title: "[SR-Change]: "                                     # Auto prefills the i
 labels: ["SRType/Normal Change", "CatalogueItem/Generic Requests"]   # Auto adds these labels
 
 body:
+  # Hidden marker field used for workflow validation
+  - type: input
+    id: template_marker
+    attributes:
+      label: "Template Marker"
+      description: "Do not remove or modify. Used for validation."
+      value: "SR Generic"
+    validations:
+      required: true
+
+
   # Short Description (textarea)
   - type: textarea
     id: u_short_description
