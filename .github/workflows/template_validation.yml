@@ -134,7 +134,7 @@ jobs:
               issue_number: issue.number,
             });
             
-            const alreadyValidated = existingComments.some(c => 
+            const alreadyValidated = existingComments2.some(c => 
               c.user.type === "Bot" && 
               (c.body.includes("✅ Template Validation Passed") || 
                c.body.includes("❌ Template Validation Failed"))
