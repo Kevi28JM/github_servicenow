@@ -43,7 +43,7 @@ jobs:
           
             const catalogLabel = labels.find(l => l.startsWith("CatalogueItem/"));
             
-            // Skip if we don't have both labels yet
+            // Skip if don't have both labels yet
             if (!srTypeLabel || !catalogLabel) {
               if (!srTypeLabel && !catalogLabel) {
                 console.log(" Neither label present - skipping validation");
@@ -52,6 +52,13 @@ jobs:
               } else if (!catalogLabel) {
                 console.log(" Missing catalog label (Ex: Normal Change/Generic Requests) - waiting for it");
               }
+
+              await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: `## ⏳ Waiting for Labels\n\nPlease add both required labels:\n- **SRType/** \n- **CatalogueItem/** \n\nValidation will run automatically once both labels are added.`
+            });
               return;
             }
             
