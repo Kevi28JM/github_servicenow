@@ -66,7 +66,7 @@ jobs:
 
             You've added: **${catalogLabel}**
 
-            Please also add an **SRType/** label (e.g., \`SRType/Normal Change\`, \`SRType/Emergency Change\`, \`SRType/Standard Change\`)
+            Please also add an **SRType/** label (e.g., \`SRType/Normal Change\`)
 
             Validation will run automatically once both labels are added.`;
               } else if (!catalogLabel) {
@@ -77,7 +77,7 @@ jobs:
 
             You've added: **${srTypeLabel}**
 
-            Please also add a **CatalogueItem/** label (e.g., \`CatalogueItem/Generic Requests\`, \`CatalogueItem/Request Logs\`)
+            Please also add a **CatalogueItem/** label (e.g., \`CatalogueItem/Generic Requests\`)
 
             Validation will run automatically once both labels are added.`;
               }
