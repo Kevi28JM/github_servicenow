@@ -55,15 +55,71 @@ jobs:
 
             const hasValidMarker = validMarkers.some(marker => issueBody.includes(marker));
 
-            // If no SR template marker, this is NOT a service request - skip validation entirely
+            // If no SR template marker, check if they're trying to add SR labels to wrong template
             if (!hasValidMarker) {
-              console.log("⏭️ Not a Service Request template - skipping validation");
+              // Check if they added SRType/ or CatalogueItem/ labels to a non-SR template
+              if (srTypeLabel || catalogLabel) {
+                console.log("SR labels added to non-SR template - posting warning");
+                
+                // Check if we already posted this warning
+                const { data: existingComments } = await github.rest.issues.listComments({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: issue.number,
+                });
+                
+                const hasWarningComment = existingComments.some(c => 
+                  c.user.type === "Bot" && 
+                  c.body.includes("❌ Template Validation Failed") &&
+                  c.body.includes("Invalid Template for Service Request Labels")
+                );
+                
+                // Only post warning if we haven't already
+                if (!hasWarningComment) {
+                  let labelsToRemove = [];
+                  if (srTypeLabel) labelsToRemove.push(srTypeLabel);
+                  if (catalogLabel) labelsToRemove.push(catalogLabel);
+                  
+                  await github.rest.issues.createComment({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: issue.number,
+                    body: `## ❌ Template Validation Failed
+
+            **Invalid Template for Service Request Labels:**
+
+            Cannot use **SRType/** or **CatalogueItem/** labels on this issue because it was not created using a Service Request template.
+
+            **Labels detected:** ${labelsToRemove.join(", ")}
+
+            These labels have been removed. If you need to create a Service Request, please use one of the official Service Request templates from the "New Issue" button.`
+                  });
+                  
+                  // Remove the SR labels from non SR template
+                  for (const lbl of labelsToRemove) {
+                    try {
+                      await github.rest.issues.removeLabel({
+                        owner: context.repo.owner,
+                        repo: context.repo.repo,
+                        issue_number: issue.number,
+                        name: lbl,
+                      });
+                      console.log(`Removed invalid label from non-SR template: ${lbl}`);
+                    } catch (err) {
+                      console.log(`Could not remove label ${lbl}:`, err.message);
+                    }
+                  }
+                }
+              } else {
+                console.log("⏭️ Not a Service Request template and no SR labels - skipping validation");
+              }
+              
               return;
             }
 
             console.log("✅ Service Request template detected - proceeding with validation");
 
-             // Skip if we don't have both labels yet
+            // Skip if we don't have both labels yet
             if (!srTypeLabel || !catalogLabel) {
               let failureMessage = "";
               
