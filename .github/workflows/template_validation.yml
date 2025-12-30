@@ -349,7 +349,7 @@ jobs:
             };
 
             
-            // Step 3: Check title format
+            // Check title format
           
             if (!issueTitle.startsWith("[SR-Change]:")) {
               const comment = `## ❌ Template Validation Failed
@@ -362,7 +362,7 @@ jobs:
             }
 
              
-            // Step 4: Validate required fields using catalog label
+            // Validate required fields using catalog label
              
             const rules = rulesets[catalogLabel];
             
@@ -394,7 +394,7 @@ jobs:
             }
 
             // ----------------------
-            // Step 5: Passed all checks
+            // Passed all checks
             // ----------------------
             //Get all existing comments on the github issue
             const { data: comments } = await github.rest.issues.listComments({
