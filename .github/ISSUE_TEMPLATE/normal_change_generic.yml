@@ -1,6 +1,6 @@
 # Issue template for Normal Change Service Request
 
-name: Service Request-Normal Change 
+name: Service Request-Normal Change Generic
 description: Request a normal change service related to the project
 title: "[SR-Change]: "                                     # Auto prefills the issue title 
 labels: ["SRType/Normal Change", "CatalogueItem/Generic Requests"]   # Auto adds these labels
